@@ -1,0 +1,13 @@
+{
+  "name": "pdf-translate-zh",
+  "version": "1.0.0",
+  "description": "Publication-grade English → Simplified Chinese translation of industrial / oil & gas / mechanical engineering PDFs (manuals, specs, drawings, forms, slide decks) with layout reflow or in-place overlay, figure-text translation, table rebuild, TOC links and machine QA gates. 工业技术 PDF 出版级中文翻译。",
+  "author": {
+    "name": "ldfpku",
+    "url": "https://github.com/ldfpku"
+  },
+  "homepage": "https://github.com/ldfpku/pdf-translate-zh",
+  "repository": "https://github.com/ldfpku/pdf-translate-zh",
+  "license": "Apache-2.0",
+  "keywords": ["pdf", "translation", "chinese", "zh-cn", "localization", "engineering", "oil-and-gas", "technical-documentation", "skill"]
+}

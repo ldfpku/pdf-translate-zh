@@ -1,0 +1,14 @@
+# pdf-translate-zh 依赖（python doctor.py 可逐项检查；--install 自动补装必需包）
+# 必需
+PyMuPDF>=1.23
+reportlab>=3.6
+Pillow>=9.0
+numpy>=1.21
+fonttools>=4.30
+# 可选：件号气泡、部分图内检测
+scipy>=1.7
+# 可选：插图超分，二选一（都不装时 sr.py 退回 Lanczos 放大，流程不中断但不是真超分）
+#   torch>=1.13        Windows+NVIDIA 按 https://pytorch.org 装 CUDA 版；macOS 直接 pip（自带 MPS）；
+#                      其他机器 CPU 版：pip install torch --index-url https://download.pytorch.org/whl/cpu
+#   onnxruntime>=1.16  约 25 MB，配合 sr.py --export-onnx 导出的 ONNX 模型（CPU/CoreML/DirectML）
+# 国内网络：pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple

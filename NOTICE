@@ -1,0 +1,15 @@
+pdf-translate-zh
+Copyright 2026 ldfpku
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Third-party components that are NOT included in this repository but may be
+downloaded at runtime:
+  - Real-ESRGAN x4plus model weights (RealESRGAN_x4plus.pth), BSD-3-Clause,
+    https://github.com/xinntao/Real-ESRGAN — fetched on first use of sr.py.
+  - Python packages installed on demand by scripts/bootstrap.py (PyMuPDF
+    [AGPL-3.0 or commercial], reportlab [BSD], Pillow [MIT-CMU], numpy [BSD],
+    fontTools [MIT], scipy [BSD], optionally torch [BSD] / onnxruntime [MIT]).
+    They are installed from PyPI into the user's cache and are not
+    redistributed by this project.
+  - System fonts are used in place; no font files are distributed.

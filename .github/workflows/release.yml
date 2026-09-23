@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check versions match tag
+        run: |
+          python - <<'PY'
+          import json, os, re, sys
+          tag = os.environ["GITHUB_REF_NAME"].lstrip("v")
+          skill = open("skills/pdf-translate-zh/SKILL.md", encoding="utf-8").read()
+          got = {
+              "SKILL.md": re.search(r'version:\s*"?([^"\n]+)"?', skill).group(1),
+              "plugin.json": json.load(open(".claude-plugin/plugin.json", encoding="utf-8"))["version"],
+              "marketplace.json": json.load(open(".claude-plugin/marketplace.json", encoding="utf-8"))["plugins"][0]["version"],
+          }
+          bad = {k: v for k, v in got.items() if v != tag}
+          if bad:
+              sys.exit("版本号与标签 %s 不一致：%s" % (tag, bad))
+          print("versions OK:", got)
+          PY
+      - name: Package
+        run: python tools/package.py
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/pdf-translate-zh.zip --title "$GITHUB_REF_NAME" --generate-notes

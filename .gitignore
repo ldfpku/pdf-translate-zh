@@ -1,0 +1,21 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+Thumbs.db
+dist/
+build/
+*.egg-info/
+.venv/
+venv/
+# 运行产物
+translated/
+tests/_out/
+*.part
+# 技能内的个人设置（镜像地址等），模板是 config.example.json
+skills/pdf-translate-zh/config.json
+# 超分模型与自备字体不入库
+skills/pdf-translate-zh/scripts/models/*.pth
+skills/pdf-translate-zh/scripts/models/*.onnx
+skills/pdf-translate-zh/fonts/*.ttf
+skills/pdf-translate-zh/fonts/*.ttc
+skills/pdf-translate-zh/fonts/*.otf

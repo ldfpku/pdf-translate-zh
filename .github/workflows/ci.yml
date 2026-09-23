@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: smoke (${{ matrix.os }}, py${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.10", "3.12"]
+    env:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Bootstrap (auto-install deps + fonts)
+        run: python skills/pdf-translate-zh/scripts/bootstrap.py
+      - name: Smoke test
+        run: python tests/smoke_test.py
+      - name: Package
+        run: python tools/package.py
+      - name: Upload outputs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-out-${{ matrix.os }}-py${{ matrix.python }}
+          path: tests/_out
+          if-no-files-found: ignore
+
+  install-unix:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: install.sh (all agents, project, link, uninstall)
+        run: |
+          export HOME="$RUNNER_TEMP/home" && mkdir -p "$HOME"
+          sh install.sh --agent all
+          test -f "$HOME/.claude/skills/pdf-translate-zh/SKILL.md"
+          test -f "$HOME/.agents/skills/pdf-translate-zh/SKILL.md"
+          mkdir -p "$RUNNER_TEMP/proj" && sh install.sh --project "$RUNNER_TEMP/proj"
+          test -f "$RUNNER_TEMP/proj/.claude/skills/pdf-translate-zh/SKILL.md"
+          sh install.sh --agent claude --link && test -L "$HOME/.claude/skills/pdf-translate-zh"
+          sh install.sh --agent all --uninstall
+          test ! -e "$HOME/.claude/skills/pdf-translate-zh"
+
+  install-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: install.ps1 (all agents, project, link, uninstall)
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $h = [Environment]::GetFolderPath("UserProfile")
+          .\install.ps1 -Agent all
+          if (-not (Test-Path "$h\.claude\skills\pdf-translate-zh\SKILL.md")) { throw "claude install missing" }
+          if (-not (Test-Path "$h\.agents\skills\pdf-translate-zh\SKILL.md")) { throw "agents install missing" }
+          New-Item -ItemType Directory -Path "$env:RUNNER_TEMP\proj" -Force | Out-Null
+          .\install.ps1 -Project "$env:RUNNER_TEMP\proj"
+          if (-not (Test-Path "$env:RUNNER_TEMP\proj\.claude\skills\pdf-translate-zh\SKILL.md")) { throw "project install missing" }
+          .\install.ps1 -Agent claude -Link
+          if (-not ((Get-Item "$h\.claude\skills\pdf-translate-zh").Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw "link not created" }
+          .\install.ps1 -Agent all -Uninstall
+          if (Test-Path "$h\.claude\skills\pdf-translate-zh") { throw "uninstall failed" }
+
+  skills-cli:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: npx skills discovers the skill
+        run: npx -y skills add . --list | grep -q pdf-translate-zh

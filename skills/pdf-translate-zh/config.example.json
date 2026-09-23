@@ -1,0 +1,11 @@
+{
+  "_说明": "复制为 config.json 即生效（与本文件同目录）。跟着技能走到每台电脑；同名环境变量 PDF_ZH_<键名大写> 优先。不需要的键删掉即可。",
+  "pip_index": "https://pypi.tuna.tsinghua.edu.cn/simple",
+  "torch_index": "https://download.pytorch.org/whl/",
+  "sr_url": "https://你的对象存储/RealESRGAN_x4plus.pth",
+  "sr_onnx_url": "https://你的对象存储/RealESRGAN_x4plus.onnx",
+  "sr_onnx_sha256": "",
+  "sr_autoinstall": "1",
+  "no_autoinstall": "0",
+  "no_autofonts": "0"
+}
