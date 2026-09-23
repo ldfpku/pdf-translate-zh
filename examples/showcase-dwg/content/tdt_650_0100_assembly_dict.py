@@ -21,7 +21,7 @@ D = {
     "MATERIAL:": "材料：",
     "SEE BOM": "见明细表",
     "DRAWN": "制图",
-    "CHECKED": "校核",
+    "CHECKED": "校对",
     "ENG APPR.": "工程批准",
     "PROPRIETARY NOTICE THIS FICTIONAL DRAWING WAS PREPARED FOR THE PDF-TRANSLATE-ZH PROJECT AS A "
     "DEMONSTRATION. IT DOES NOT DESCRIBE A REAL PRODUCT AND MUST NOT BE USED FOR MANUFACTURE.":
@@ -35,9 +35,9 @@ D = {
     "DWG. NO.": "图号",
     "SCALE: 1:4": "比例：1:4",
     "WEIGHT: 640 LBS": "重量：640 磅",
-    "SHEET 1 OF 3": "第 1/3 张",
-    "SHEET 2 OF 3": "第 2/3 张",
-    "SHEET 3 OF 3": "第 3/3 张",
+    "SHEET 1 OF 3": "共3张 第1张",
+    "SHEET 2 OF 3": "共3张 第2张",
+    "SHEET 3 OF 3": "共3张 第3张",
     # ---- 明细表
     "ITEM": "件号",
     "DESCRIPTION": "名称及规格",       # 修订栏同名表头另译「说明」，见 build.py 的 lookup

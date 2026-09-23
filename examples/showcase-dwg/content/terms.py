@@ -55,7 +55,7 @@ GLOSSARY = {
         ("unless otherwise specified", "除另有规定外"),
         ("break all sharp corners", "所有尖角均须倒钝"),
         ("TIR (total indicator reading)", "全跳动"),
-        ("drawn / checked / eng. appr.", "制图 / 校核 / 工程批准"),
+        ("drawn / checked / eng. appr.", "制图 / 校对 / 工程批准"),
         ("assembly traveler", "装配流转卡"),
     ],
 }
