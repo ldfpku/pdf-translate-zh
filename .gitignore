@@ -19,3 +19,4 @@ skills/pdf-translate-zh/scripts/models/*.onnx
 skills/pdf-translate-zh/fonts/*.ttf
 skills/pdf-translate-zh/fonts/*.ttc
 skills/pdf-translate-zh/fonts/*.otf
+examples/*/build/

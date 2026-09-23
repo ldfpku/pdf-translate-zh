@@ -27,7 +27,7 @@ from reportlab.lib.styles import ParagraphStyle
 
 import zhlib as _Z
 from zhlib import zh, styles, register_fonts
-from render import flow, P
+from render import flow, P, NAV
 
 
 # ================================================================ 几何
@@ -265,8 +265,13 @@ class Marker(Flowable):
 
 
 # ================================================================ 装配
+# 成品 PDF 的文档属性（标题/作者/主题），由 driver 按 Job 设置；出版级成品不应留 "(anonymous)"
+DOC_META = {}
+
+
 class _Doc(BaseDocTemplate):
     def __init__(self, path, geom, mast, foot, labels, decors=(), **kw):
+        kw = dict(DOC_META, **kw)
         self.geom, self.mast, self.foot = geom, mast, foot
         self.decors = list(decors or ())
         self.labels = labels or {}
@@ -321,6 +326,7 @@ def build(path, pages, geom=LETTER, mast=None, foot=None, labels=None,
     """构建。pre_story 在主体之前（封面/目录），extra_story 在其后（附录）。"""
     register_fonts()
     S = S or styles()
+    NAV.reset()                      # 每趟重新编号锚点（书签 key 两趟一致）
     story = list(pre_story or [])
     body = assemble(pages, S, figdir, flow_mode, chapter_break) if pages else []
     if body and body_marker is not None:
@@ -395,6 +401,15 @@ def build_2pass(path, pages, appendices, geom=LETTER, mast=None, foot=None,
             return None
         return [Marker("_body0", sink)] + list(pre_story)
 
+    NAV.reset(full=True)
+    has_toc = any(isinstance(b, tuple) and b and b[0] == "toc" for blocks in (pages or []) for b in blocks)
+    if has_toc:
+        # 第〇趟：先收集全部标题条目（目录行数由它定），目录高度随之固定，后两趟版面才稳定
+        build(io.BytesIO(), pages, geom, mast, foot, {}, S, figdir,
+              extra_story=make_extra({}), pre_story=list(pre_story or []), decors=decors,
+              flow_mode=flow_mode, chapter_break=chapter_break, body_marker=Marker("_body", {}))
+        NAV.entries = list(NAV.seen)
+
     # ---- 第一趟：只为读页号，标签留空 ----
     sink = {}
     tmp = io.BytesIO()
@@ -431,6 +446,7 @@ def build_2pass(path, pages, appendices, geom=LETTER, mast=None, foot=None,
     labels.update(appendix_labels(spans))
 
     # ---- 第二趟：带正确标签重排。Marker 零高度，不影响版面 ----
+    NAV.toc_pages, NAV.labels = dict(NAV.pages), dict(labels)
     sink2 = {}
     n2 = build(path, pages, geom, mast, foot, labels, S, figdir,
                extra_story=make_extra(sink2), pre_story=list(pre_story or []),

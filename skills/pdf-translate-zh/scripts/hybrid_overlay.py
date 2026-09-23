@@ -727,7 +727,9 @@ def _units_of_raw(page, split_gap=1, clean=True, rot=True, drop_font=None,
            if _inside(x[0], trs)]
     if clean:
         import keyclean
-        blk, lin = keyclean.clean(blk), keyclean.clean(lin)
+        from dwg_bom import segments
+        _hr = sorted(segments(page, min_h=8.0, min_v=1e9)[0])
+        blk, lin = keyclean.clean(blk, hrules=_hr), keyclean.clean(lin, hrules=_hr)
     blk = [(r, t, s) for r, t, s in blk if not _claimed(r, t)]
     lin = [(r, t, s) for r, t, s in lin if not _claimed(r, t)]
     out = ([(r, t, s, 0) for r, t, s in blk]
@@ -832,7 +834,12 @@ def _dedupe_geom(units, frac=0.35):
             #   · 一方为另一方子串 —— 带符号形态 vs 裸形态
             #     （`• 上接头与转子打捞头　• 转子与定子` vs `上接头与转子打捞头`）；
             #   · 窄栏单字碎片落在长段之内（长注释 vs `的`）。
-            if inter > 0 and (t == kt or t in kt or kt in t):
+            # 子串判据只对**成词的片段**成立：单个拉丁字母/两位编号是子串纯属巧合 ——
+            # 图纸边框的区号 `B`、`D` 是 `FT-LBS`、`SHOULDER` 的子串，被当成碎片
+            # 并进同行的长标注，写入框横跨整页、区号本身也随之失踪（实测）。
+            sh = t if len(t) <= len(kt) else kt
+            frag = len(sh.strip()) >= 3 or any(ord(c) > 0x2E80 for c in sh)
+            if inter > 0 and (t == kt or (frag and (t in kt or kt in t))):
                 hit = k
                 break
             # 文本**完全相同**且位置相近时也合并，即便矩形不相交 ——

@@ -226,7 +226,9 @@ def redraw(im, d, box, text, like=None, font=FONT_NUM):
     for deg in range(0, 360, 5):
         th = np.deg2rad(deg)
         if deg in geo.get("rays", {}):
-            r = geo["rays"][deg][1] + 2.0
+            # 射线的「外沿」可能沿引线一路追到零件上（引线短、零件近时）—— 封顶在拟合外径附近，
+            # 否则擦除多边形会把引线连同零件轮廓一起描白（实测：壳体上沿被挖出一道白口）
+            r = min(geo["rays"][deg][1] + 2.0, max(rox, roy) * 1.15 + 4.0)
             poly.append((geo["cx0"] + r * np.cos(th), geo["cy0"] + r * np.sin(th)))
         else:
             poly.append((cx + (rox + 3) * np.cos(th), cy + (roy + 3) * np.sin(th)))

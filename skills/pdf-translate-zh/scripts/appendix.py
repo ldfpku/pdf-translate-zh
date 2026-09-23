@@ -14,7 +14,7 @@ from reportlab.lib import colors
 
 import zhlib as _Z
 from zhlib import zh, styles, TBL_GRID, TBL_HDR
-from render import P, grid_table
+from render import P, grid_table, Anchor
 
 
 A_TITLE = "附录 A 译校勘误说明"
@@ -47,7 +47,7 @@ def _numbered(rows, hdr):
 def errata(jia=(), yi=(), bing=(), S=None, fw=468.0, intro=None):
     """附录 A。三类条目各自可为空；为空则该节写明「无」。"""
     S = S or styles()
-    out = [P(A_TITLE, S["h1"])]
+    out = [Anchor(A_TITLE, 0, key="apx_A"), P(A_TITLE, S["h1"])]
     out.append(P(intro or
                  "本附录逐条记录翻译与版式重建过程中发现的原文缺陷、存疑之处，"
                  "以及为忠实还原原版而做的插图与版式修复动作。凡正文按勘正后"
@@ -87,7 +87,7 @@ def errata(jia=(), yi=(), bing=(), S=None, fw=468.0, intro=None):
 def glossary(GLOSSARY, S=None, fw=468.0, order=None, note=None):
     """附录 B。GLOSSARY: {类别: [(英文, 中文[, 备注]), ...]}，双栏排版。"""
     S = install_gloss_styles(S or styles())
-    out = [P(B_TITLE, S["h1"])]
+    out = [Anchor(B_TITLE, 0, key="apx_B"), P(B_TITLE, S["h1"])]
     out.append(P(note or
                  "下表汇总全文术语的英中对照，供与原版交叉查阅。同一术语全文"
                  "统一译名；首次出现处在正文中附注英文。数值、单位、型号、"

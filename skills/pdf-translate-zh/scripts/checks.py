@@ -130,10 +130,13 @@ def test_labels(work, LABELS, keep_re=NUMERIC_KEEP):
 def test_assets(work, used_files):
     """引用的图都在；并列出未被引用的图供人判断（可能是漏译的插图）。"""
     figdir = os.path.join(work, "figures")
-    have = ({f for f in os.listdir(figdir) if f.lower().endswith(".png")}
+    have = ({f for f in os.listdir(figdir) if f.lower().endswith((".png", ".jpg", ".jpeg"))}
             if os.path.isdir(figdir) else set())
     used = set(used_files)
-    return sorted(used - have), sorted(have - used)
+    # 位图流水线同一幅图常有 xNN.png（中间件）与 xNN.jpg（嵌入用）两份：引用了任一份，另一份不算「未引用」
+    used_stems = {os.path.splitext(f)[0] for f in used}
+    unused = sorted(f for f in have - used if os.path.splitext(f)[0] not in used_stems)
+    return sorted(used - have), unused
 
 
 def test_terms(uniq_desc, desc_zh):

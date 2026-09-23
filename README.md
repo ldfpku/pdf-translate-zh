@@ -21,6 +21,55 @@
 
 ---
 
+## 效果展示
+
+下面是技能对同一件**虚构**产品的两份文档——装配作业指导书与总装图——的端到端处理结果（Tethys Downhole Tools 为虚构品牌，插图与图纸由程序绘制）。样例复刻了真实工业文档翻译里最难的几类问题：低清插图、发虚的件号气泡、烧死在位图里的英文标注、目录与书签、多级步骤；图纸上的矢量注记符号、纵向合并的明细表、引线标注与竖排尺寸。全部机器闸门 PASS。
+
+### 装配作业指导书（语义重排）
+
+📄 原文 [SWI-650-SS_Assembly_en.pdf](docs/showcase/SWI-650-SS_Assembly_en.pdf) · 译稿 [SWI-650-SS_Assembly_zh.pdf](docs/showcase/SWI-650-SS_Assembly_zh.pdf) · 复现步骤 [examples/showcase-swi](examples/showcase-swi/)
+
+**整页：语义重排，而不是把中文硬塞回英文框**
+
+![整页对比](docs/showcase/01_pages.png)
+
+**插图复原：85 dpi → 超分 4 倍；件号气泡按零件表与步骤正文判读后原位重绘**
+
+![超分与件号气泡](docs/showcase/02_sr_bubbles.png)
+
+**图内文字：位图里的英文标注检测定位，原位写入中文，漏译排查归零**
+
+![图内文字](docs/showcase/03_figure_text.png)
+
+**目录与导航：译版页码自动回填、点引线对齐、整行跳转；章节与每个工序步骤都有书签**
+
+![目录与书签](docs/showcase/04_toc.png)
+
+**可追溯：正文之后附《译校勘误说明》与《中英术语对照表》，各自另起一页**
+
+![附录](docs/showcase/05_appendix.png)
+
+<details>
+<summary>全册缩览</summary>
+
+![全册缩览](docs/showcase/06_all_pages.png)
+
+</details>
+
+### 工程图纸（保位叠印）
+
+📄 原图 [TDT-650-0100_Assembly_en.pdf](docs/showcase/TDT-650-0100_Assembly_en.pdf) · 译图 [TDT-650-0100_Assembly_zh.pdf](docs/showcase/TDT-650-0100_Assembly_zh.pdf) · 复现步骤 [examples/showcase-dwg](examples/showcase-dwg/)
+
+**整张图纸：只换字、不动线——剖面线、尺寸线、件号气泡与引线保持原始矢量，扭矩值与螺纹代号原样保留**
+
+![图纸整张对比](docs/showcase/07_dwg_sheet.png)
+
+**细节：标题栏注记格整格重排（± ° ∨ 是矢量）、明细表真网格重建（合并格保留、误引件号勘正）、引线标注、竖排尺寸**
+
+![图纸细节](docs/showcase/08_dwg_details.png)
+
+---
+
 ## 它能做什么
 
 - **先识别行业与版面级别**，再决定怎么译：说明书/规范走语义重排（R），图纸与可填写表单原位叠印（P），混合页（H）和 PPT 讲义（S）各有路线。
@@ -228,7 +277,8 @@ python tests/smoke_test.py        # Windows：py tests\smoke_test.py
 ```text
 .claude-plugin/          Claude Code 插件与市场清单
 skills/pdf-translate-zh/ 技能本体（SKILL.md、references/、scripts/、setup.*）
-examples/                完整内容层示例（虚构文档）
+examples/                完整内容层示例（虚构文档），含效果展示 showcase-swi/（作业指导书）、showcase-dwg/（工程图纸）
+docs/showcase/           展示用前后对比图与原文/译稿 PDF
 tests/                   样例 PDF 生成、引擎冒烟测试、代理端到端验证（agent_eval/）
 tools/package.py         打包 dist/pdf-translate-zh.zip
 install.sh / install.ps1 多工具安装脚本

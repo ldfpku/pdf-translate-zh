@@ -77,7 +77,19 @@ def join_dot_leaders(items):
     return out
 
 
-def join_wrapped(items, max_gap=3.0, xtol=6.0):
+_NUMBERED = re.compile(r"^\s*(\d{1,2}|[A-Za-z])[.)]\s")
+_CONT = re.compile(r"(,|&|\b(AND|OR|OF|THE|WITH|TO|FOR|and|or|of|the|with|to|for))\s*$")
+
+
+def _ruled(a, b, hrules):
+    """两行之间是否隔着一条水平线（表格行线）。"""
+    ya, yb = (a.y0 + a.y1) / 2, (b.y0 + b.y1) / 2
+    lo, hi = min(ya, yb), max(ya, yb)
+    x0, x1 = max(a.x0, b.x0), min(a.x1, b.x1)
+    return any(lo < y < hi and hx0 <= x1 and hx1 >= x0 for y, hx0, hx1 in hrules)
+
+
+def join_wrapped(items, max_gap=3.0, xtol=6.0, hrules=None):
     """把同一单元格内被框宽截断的多行说明拼回一条。
 
     判据三条同时成立：上一行**不以句末标记收尾**、两行左界基本对齐
@@ -86,16 +98,40 @@ def join_wrapped(items, max_gap=3.0, xtol=6.0):
     items = sorted(items, key=lambda it: (round(it[0].y0, 1), it[0].x0))
     out = []
     for r, t, s in items:
-        if out:
-            pr, pt, ps = out[-1]
+        # 续行的「上一行」不一定是排序后的前一条：同一高度上别处还有单元（图纸的
+        # 总注与右上角修订栏同高；标题栏专有声明与右邻注记格逐行交错），只看
+        # out[-1] 就接不上。往回找同一栏里、纵向紧邻的那一条（最多回看 30pt）。
+        merged = False
+        for j in range(len(out) - 1, -1, -1):
+            pr, pt, ps = out[j]
+            if pr.y1 < r.y0 - max_gap - 30:
+                break
             _end = bool(_ENDED.search(pt))
             if not _end and _PAREN_END.search(pt) and len(pt) < 40:
                 _end = True          # 短括号串 = 表头格，不拼
-            if (not _end and abs(pr.x0 - r.x0) <= xtol
-                    and 0 <= r.y0 - pr.y1 <= max_gap):
-                out[-1] = (pr | r, " ".join((pt + " " + t).split()), ps)
-                continue
-        out.append((r, t, s))
+            # 纵向紧邻：行距小于字高时（图纸标题栏的小字常是 5.7pt 字、7.2pt 行距）
+            # 相邻两行的 bbox 本来就**互相压着**，间距为负 —— 只认 ≥ 0 会把整段
+            # 专有声明切成逐行单元、各自成句译出。容许压叠到行高的 35%。
+            gap = r.y0 - pr.y1
+            tight = -0.35 * min(r.height, pr.height) <= gap <= max_gap
+            # 左界对齐，或**悬挂缩进**：上一段以编号起头（`2.  APPLY …`），
+            # 续行缩进到编号之后（图纸总注的标准排法）。缩进上限 4 em。
+            hang = (_NUMBERED.match(pt) is not None
+                    and 0 < r.x0 - pr.x0 <= 4.0 * max(ps or 0, r.height * 0.8))
+            # 居中排的多行标题（标题栏图名）：上一行以逗号/连接词收尾、两行中心对齐
+            cen = (abs((pr.x0 + pr.x1) - (r.x0 + r.x1)) / 2 <= xtol
+                   and _CONT.search(pt) is not None)
+            if j < len(out) - 1 and not hang:
+                # 非编号条的回看要多一道闸：两行之间**没有水平线**（有线就是表格的
+                # 上下两格，不是一段话）。调用方没给线（hrules=None）就不回看。
+                if hrules is None or _ruled(pr, r, hrules):
+                    continue
+            if not _end and (abs(pr.x0 - r.x0) <= xtol or hang or cen) and tight:
+                out[j] = (pr | r, " ".join((pt + " " + t).split()), ps)
+                merged = True
+                break
+        if not merged:
+            out.append((r, t, s))
     return out
 
 
@@ -162,12 +198,15 @@ def norm_leaders(text):
     return " ".join(t.split())
 
 
-def clean(items, dot_leaders=True, wrapped=True, leaders=True):
-    """一次过：拼点导线 → 拼截断行 → 归一导线 → 折叠重复词。"""
+def clean(items, dot_leaders=True, wrapped=True, leaders=True, hrules=None):
+    """一次过：拼点导线 → 拼截断行 → 归一导线 → 折叠重复词。
+
+    `hrules` = 页面水平线 [(y, x0, x1)]（`dwg_bom.segments` 的 H）；给了才允许
+    截断行跨过同高的别栏单元回看拼接。"""
     if dot_leaders:
         items = join_dot_leaders(items)
     if wrapped:
-        items = join_wrapped(items)
+        items = join_wrapped(items, hrules=hrules)
     out = []
     for r, t, s in items:
         t = norm_pua(t)

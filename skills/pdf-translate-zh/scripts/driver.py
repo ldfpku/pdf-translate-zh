@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from dataclasses import replace
 
 import checks
-from zhlib import styles, register_fonts
+from zhlib import styles, register_fonts, zh
 from builder import Geom, LETTER, Masthead, Footer, build_2pass, fit_check
 from appendix import errata, glossary
 
@@ -71,6 +71,8 @@ class Job:
     token_src_pages: tuple = None # 内容对账的源页范围（1 基；缺省全部）
     geom: Geom = LETTER
     mast_title: str = ""
+    title: str = ""               # 成品 PDF 文档属性「标题」；缺省取第一个 title/h1 块
+    author: str = "pdf-translate-zh 中文译本"
     mast_info: tuple = ()
     mast_info_w: tuple = None
     mast_title_size: float = 18.0
@@ -187,6 +189,11 @@ def run(job, quiet=False):
 
     # ---- 3. 构建 ----
     print("[3] 两趟构建")
+    import builder as _B
+    _t = job.title or next((b[1] for blocks in job.pages for b in blocks
+                            if isinstance(b, tuple) and b and b[0] in ("title", "h1")
+                            and isinstance(b[1], str)), job.name)
+    _B.DOC_META = dict(title=zh(_t), author=job.author, subject=job.name, creator="pdf-translate-zh")
     # 传**工厂**而非现成 flowable：两趟构建会排两遍，ReportLab 的 Table 有状态，
     # 复用同一实例第二趟会抛 LayoutError（cell too large on page …）。
     def apx():

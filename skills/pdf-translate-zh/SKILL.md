@@ -4,7 +4,7 @@ description: 工业/石油/机械/工程技术类英文 PDF → 出版级简体�
 license: Apache-2.0
 compatibility: Python 3.9+（Windows / macOS / Linux）；依赖首次运行自动安装
 metadata:
-  version: "1.0.2"
+  version: "1.1.0"
   repository: https://github.com/ldfpku/pdf-translate-zh
 ---
 
@@ -155,7 +155,8 @@ AWS = 焊接……）②**产品域词汇**（motor/stator/rotor/jar/BHA → 井
 
 块 DSL（全部文本自动过 `zh()`）：`("h1"|"h2"|"h3", t)` `("p", t)` `("bul", [..])`
 `("ol", [..], "alpha")` `("step", t)` `("kv", [(k, v)])` `("box", t, 类型[, 标题])`
-`("fig", 文件, 宽pt, 图题)` `("tbl", 工厂, 表题)` `("sbs", 左, 右, 左宽)` `("pb",)` `("cpb", 高)`。
+`("fig", 文件, 宽pt, 图题)` `("tbl", 工厂, 表题)` `("sbs", 左, 右, 左宽)` `("pb",)` `("cpb", 高)`
+`("toc", "目录", 层级)`（自动目录）`("mark", 书签标题, 层级)`（只落书签）`("keep", [块…])`（步骤与其插图不分页）。
 完整列表在 `scripts/render.py` 顶部。警示框按原版信号词选类型并自动加标题（正文里别再写一遍）：
 NOTE→`note`「说明」、CAUTION→`caution`「注意」、WARNING→`warning`「警告」、DANGER→`("box", t, "danger", "危险")`；章与章缺省接排，长手册要每章另起页设 `Job(chapter_break=True)`。
 
@@ -224,6 +225,11 @@ NOTE→`note`「说明」、CAUTION→`caution`「注意」、WARNING→`warning
 - **件号气泡**：逐个放大核读（`bubbles.sheet`），与步骤文字/零件表对账后
   `bubbles.redraw` 原位统一重绘，`bubbles.residue_check` 旧环残留判据全书归零；判读依据与
   存疑写进附录 A 乙。
+- **R 级位图插图一条龙**（`figpipe.py`，手册/作业指导书里的低清渲染图、截图）：
+  `extract`（按 xref 提原图，软掩膜合成白底，记有效 dpi）→ `sr.py --places data/images.json`
+  → `detect`（出带框号的核查图 `qa/det_*.png`）→ 内容层写 `labels_zh.py`（按**框号**给译名 /
+  KEEP / SKIP，件号气泡写 `BUBBLES`）→ `apply`（回叠 + 气泡重绘，大图出 JPEG）→ `sweep`
+  归零 → `sheet` 气泡拼贴目检。未列出的框按漏译报错。完整示例见仓库 `examples/showcase-swi/`。
 
 ---
 
@@ -246,7 +252,10 @@ NOTE→`note`「说明」、CAUTION→`caution`「注意」、WARNING→`warning
   （自动降号试排）推出。写死的 540/72/10pt 换一份文档就失效。
 - 默认叠印保位，命中判据才重排：目录被导出成单条长串/引线残留/页码落行中 → 整页重排；
   封面中译标题块宽 < 原块 0.55 或折行多于原版 → 只重排标题块。原版没有就不新造。
-- **≥ 20 页强制加跳转链接与书签**（`toclinks.add`，分节页码用 `use_labels=True`，文件编号
+- **R 级重排：目录与书签由引擎生成**。标题块（sec/h1/h2）自动落 PDF 书签；内容层放
+  `("toc", "目录", 收录层级)` 即按译版页码自动排目录（点引线收敛、整行可点跳转，附录 A/B 自动收录）；
+  工序步骤等只要书签不进目录的用 `("mark", 标题, 层级)`。有目录时两趟构建自动多跑一趟定行数。
+- **叠印路线 ≥ 20 页强制加跳转链接与书签**（`toclinks.add`，分节页码用 `use_labels=True`，文件编号
   索引用 `code_links`）。链接在合并附录**之后**加；`add()` 幂等（「链接数 = 书签数 × 2」
   是重复叠加的指纹）；书签层级至多深一级（PDF 大纲硬约束），缩进不动。
 - 点引线**实测收敛**或**从右往左画**；同页引线/右对齐条目的写入框右端取齐到公共 x。

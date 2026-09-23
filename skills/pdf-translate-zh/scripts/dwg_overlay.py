@@ -350,6 +350,8 @@ def _lines_split_by_boxes(page, clip=None, ygap=3.0, drop_font=None,
     # 都算竖线，正文长句会被从中间劈开（实测 手册 B 第 3 页整段散文被切成
     # 十几条碎片、未命中 329 条）。列切分只对表格有意义。
     vxs = list(vxs or ())
+    from dwg_bom import segments
+    walls = sorted(segments(page, min_h=1e9, min_v=6.0)[1])
     words = page.get_text("words", clip=clip)
     if not words:
         return []
@@ -449,6 +451,14 @@ def _lines_split_by_boxes(page, clip=None, ygap=3.0, drop_font=None,
                       for c in cbs) if gx1 > gx0 else False
             if not hit and (gx1 - gx0) > max(0.75 * loc, _uni):
                 hit = True
+            # ④ 相邻两词**字号悬殊**（词高比 ≥ 1.4）—— 不是同一行文字。图纸标题栏里
+            #    17pt 的商号字标与右侧 5.6pt 的地址行底边齐平、空隙只有 2pt，
+            #    按空隙切不开，并成「tethys FICTIONAL …」一条，译文就把字标改写成小字。
+            #    与段级通道 `blocks_of()` 的跨字号断开同一阈值。
+            if not hit:
+                ha, hb = seg[-1][3] - seg[-1][1], w[3] - w[1]
+                if max(ha, hb) >= 1.4 * max(min(ha, hb), 0.1):
+                    hit = True
             # ③ 空隙里**跨过一条竖直表格线** —— 列边界，必须切开。
             #    没有这一条，「记录」列尾与「备注」列首会并成一条，
             #    中文从记录列起排、压到备注列上（目测清单点名）。
@@ -500,6 +510,14 @@ def _lines_split_by_boxes(page, clip=None, ygap=3.0, drop_font=None,
             for c in cbs:                      # 不得越过右侧勾选框
                 if c.x0 > x1 - 0.5 and c.y1 > y0 - 1 and c.y0 < y1 + 1:
                     limit = min(limit, c.x0 - 1.0)
+            # 也不得越过右侧**纵向贯穿本行的竖线**（格子边框）。`vxs` 只在开了列切分时
+            # 才有，默认为空 —— 图纸标题栏里「专有声明」一行的右邻是注记格，
+            # 注记格的文字靠前导空格缩进，下一段左界远在竖线之外，写入框于是
+            # 越过格线伸进注记格；随后 dwgnote 整格重排时把越界的半句中文一起抹掉
+            # （实测「…虚构演示图纸，不描述任何真」截断，六道关不报）。
+            for vx, vy0, vy1 in walls:
+                if x1 - 0.5 < vx < limit and vy0 <= y0 + 1.0 and vy1 >= y1 - 1.0:
+                    limit = vx - 1.0
             # 记下**墨迹右界**：写入框已向右放宽到单元格边界，凡按 x1 聚类
             # 判「整列右对齐」的判据若拿放宽后的框去看，同一格里的每一条
             # 都天然齐平右边框 —— 实测 手册 A 第 9 页消耗品清单的项目符号

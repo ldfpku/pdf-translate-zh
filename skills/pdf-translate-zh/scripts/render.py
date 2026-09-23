@@ -31,6 +31,9 @@
     ("pb",)                             强制分页（流式重排时另起一页）
     ("cpb", 高度pt)                     剩余高度不足即分页（防标题落在页底）
     ("raw",  flowable)                  直接插入
+    ("toc"[, 目录标题[, 收录层级]])     自动目录：收录 sec/h1(/h2) 与附录标题，页码按译版页码标签，
+                                        点引线实测收敛，整行可点跳转；标题块同时落 PDF 书签
+    ("mark", 书签标题[, 层级])          只落书签（PDF 大纲）不出字，例如每个工序步骤
 
 坑（SKILL ⑧）：("ol", items, mode) 与 ("ol_from", start, items, mode) 的 mode
 下标不同，绝不可写成统一的 b[3] —— 否则所有 alpha 会静默退化成数字序号。
@@ -219,6 +222,144 @@ def _img(path, w, geom=None):
     return Image(path, width=w, height=w * ih / float(iw))
 
 
+# ---------------------------------------------------------------- 导航：书签 + 自动目录
+class _Nav:
+    """两趟构建之间共享的导航状态：锚点（书签）、各锚点落在第几页、页码标签。
+
+    标题块（sec/h1/h2/h3）与附录标题各带一个零尺寸 `Anchor`：画到哪页就在哪页落书签
+    （PDF 大纲），并把页号记下来。`("toc",)` 块按**上一趟**收集到的条目排目录：
+    条目数不变则目录高度不变，两趟之间版面稳定（builder.build_2pass 会在有目录时多跑一趟）。
+    """
+
+    def __init__(self):
+        self.reset(full=True)
+
+    def reset(self, full=False):
+        self.seq = 0
+        self.seen = []            # 本趟构造的 (key, 标题, 层级)
+        self.last_level = -1
+        if full:
+            self.entries = []     # 目录条目（上一趟的 seen）
+            self.pages = {}       # key → 物理页（最近一趟画出的）
+            self.toc_pages = {}   # 目录取用的页号快照
+            self.labels = {}      # 物理页 → 页码标签
+            self.max_level = 1    # 目录收录到哪一级（0 = 只收 h1）
+
+
+NAV = _Nav()
+
+
+def _plain(t):
+    import re as _re
+    return _re.sub(r"<[^>]+>", "", zh(str(t))).replace("&amp;", "&").strip()
+
+
+class Anchor(Flowable):
+    """零尺寸锚点：书签（PDF 大纲）+ 记页号，供自动目录与跳转链接。"""
+
+    def __init__(self, title, level, key=None):
+        Flowable.__init__(self)
+        self.width = self.height = 0
+        if key is None:
+            NAV.seq += 1
+            key = "nav%03d" % NAV.seq
+        self.key, self.title, self.level = key, _plain(title), level
+        NAV.seen.append((self.key, self.title, level))
+
+    def wrap(self, *a):
+        return (0, 0)
+
+    def draw(self):
+        c = self.canv
+        lv = min(self.level, NAV.last_level + 1)   # 大纲层级不能跳级（ReportLab 会抛错）
+        NAV.last_level = lv
+        c.bookmarkPage(self.key)
+        c.addOutlineEntry(self.title, self.key, lv, closed=lv > 0)
+        NAV.pages[self.key] = c.getPageNumber()
+
+
+def anchored(fl, title, level):
+    """把书签挂在标题 flowable **自身**的绘制上。
+
+    ⚠ 不能在标题前另放零尺寸 Anchor：标题在页底放不下被推到下一页时，零尺寸锚点仍留在
+    上一页，书签与目录页码都差一页（冒烟测试实测「3.2 钻进」）；放在标题后又会打断标题样式的
+    keepWithNext（标题只和锚点「粘」在一起，照样孤悬页底）。
+    """
+    a = Anchor(title, level)
+    base = fl.__class__
+
+    def draw(self):
+        a.canv = self.canv
+        a.draw()
+        del a.canv
+        base.draw(self)
+
+    fl.__class__ = type("Anchored" + base.__name__, (base,), {"draw": draw})
+    return fl
+
+
+def _page_text(key):
+    import re as _re
+    pno = NAV.toc_pages.get(key)
+    if pno is None:
+        return "00"
+    lab = NAV.labels.get(pno, "")
+    m = _re.search(r"第\s*(\d+)\s*页", lab)
+    if m:
+        return m.group(1)
+    m = _re.search(r"附录\s*([A-Z]-\d+)", lab)
+    return m.group(1) if m else str(pno)
+
+
+class TOCFlow(Flowable):
+    """自动目录：标题（可折行）+ 实测收敛的点引线 + 右对齐页码，整行可点击跳转。"""
+
+    def __init__(self, width, size=10.0, lead=1.75, indent=16.0, numw=44.0):
+        Flowable.__init__(self)
+        self.width, self.size, self.lead, self.indent, self.numw = width, size, lead, indent, numw
+        self.rows = [e for e in NAV.entries if e[2] <= NAV.max_level]
+
+    def _lines(self, title, level):
+        from reportlab.lib.utils import simpleSplit
+        font = "ZH-B" if level == 0 else "ZH"
+        return font, simpleSplit(title, font, self.size, self.width - self.numw - 24 - level * self.indent)
+
+    def wrap(self, aw, ah):
+        self.width = aw or self.width
+        h = 0
+        for key, title, level in self.rows:
+            h += len(self._lines(title, level)[1]) * self.size * self.lead
+        self.height = h
+        return (self.width, h)
+
+    def draw(self):
+        from reportlab.pdfbase.pdfmetrics import stringWidth
+        c = self.canv
+        y = self.height
+        step = self.size * self.lead
+        for key, title, level in self.rows:
+            font, lines = self._lines(title, level)
+            x0 = level * self.indent
+            top = y
+            for i, ln in enumerate(lines):
+                y -= step
+                c.setFont(font, self.size)
+                c.setFillColorRGB(0, 0, 0)
+                c.drawString(x0, y + step * 0.3, ln)
+            num = _page_text(key)
+            c.setFont("ZH", self.size)
+            c.drawRightString(self.width, y + step * 0.3, num)
+            # 点引线：从末行文字尾到页码前，按点宽实测收敛（toc-and-nav.md §2）
+            x_from = x0 + stringWidth(lines[-1], font, self.size) + 6
+            x_to = self.width - stringWidth(num, "ZH", self.size) - 6
+            dot = stringWidth(".", "ZH", self.size) + 0.6
+            n = max(0, int((x_to - x_from) / dot))
+            c.setFillColorRGB(0.45, 0.45, 0.45)
+            for k in range(n):
+                c.drawString(x_to - (k + 1) * dot, y + step * 0.3, ".")
+            c.linkRect("", key, (0, y, self.width, top), relative=1, thickness=0)
+
+
 # ---------------------------------------------------------------- 主渲染
 def flow(blocks, S=None, figdir=None, ctx=None):
     """块列表 → flowable 列表。"""
@@ -234,9 +375,19 @@ def flow(blocks, S=None, figdir=None, ctx=None):
             from reportlab.platypus import CondPageBreak
             out.append(CondPageBreak(b[1]))
         elif k == "sec":
-            out.append(P(b[1], S["section"]))
+            out.append(anchored(P(b[1], S["section"]), b[1], 0))
         elif k in ("h1", "h2", "h3"):
-            out.append(P(b[1], S[k]))
+            out.append(anchored(P(b[1], S[k]), b[1], int(k[1]) - 1))
+        elif k == "toc":
+            # ("toc"[, 目录标题[, 收录层级]])：按两趟构建收集的标题自动排目录（点引线、页码、跳转链接）
+            if len(b) > 2 and b[2] is not None:
+                NAV.max_level = int(b[2])
+            if len(b) > 1 and b[1]:
+                out.append(P(b[1], S["h1"]))
+            out.append(TOCFlow(468.0))
+        elif k == "mark":
+            # ("mark", 书签标题[, 层级])：只落书签不出字（如每个工序步骤进 PDF 大纲、不进目录）
+            out.append(Anchor(b[1], b[2] if len(b) > 2 else 1))
         elif k == "title":
             # 可选字号：中文比英文紧凑，原版 22pt 题名需上调才有同等版面占比
             st = S["title"]

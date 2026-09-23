@@ -91,6 +91,7 @@ vectext.overlay(doc[pi], RASTER_ZH[pi])          # 图内位图英文
 | `sr.py` | **插图超分**：Real-ESRGAN x4plus，按有效 dpi 筛选（<150 才处理）；后端 torch（CUDA/MPS/CPU）→ onnxruntime（`--export-onnx` 导出的模型）→ Lanczos 兜底；分块推理控内存；权重多源下载 + SHA-256；`--fetch` 预下载；处置方式写 `sr_report.json` |
 | `tightbox.py` | 检测框**收紧到文字本体**：引线/箭头头/噪点/单字母/彩底五条规则，返回行高供定字号 |
 | `bubbles.py` | **件号气泡**：填洞/射线/模板三法求环心 → 擦旧环补引线 → 重绘环与 Arial Bold 编号 → 旧环残留判据 → 放大拼贴 |
+| `figpipe.py` | **R 级位图插图一条龙**：`extract`（按 xref 提原图、SMask 合成、记有效 dpi → `data/images.json`）→（`sr.py`）→ `detect`（带框号核查图）→ `apply`（按内容层 `labels_zh.py` 的框号译名回叠、`BUBBLES` 气泡重绘）→ `sweep` 漏译归零 → `sheet` 气泡拼贴 |
 | `uniq_desc.py` | 列出「零件描述」的唯一串，建规则化译名用 |
 | `selftest.py` | 引擎冒烟自检：`zh()` 单测、块 DSL 参数位置、装配与几何 |
 

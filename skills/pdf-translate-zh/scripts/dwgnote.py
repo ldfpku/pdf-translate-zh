@@ -51,13 +51,27 @@ def _note_lines(page):
         if b.get("type") != 0:
             continue
         for ln in b["lines"]:
-            t = "".join(s["text"] for s in ln["spans"])
-            if not t.strip():
-                continue
-            sz = max(s["size"] for s in ln["spans"])
-            if sz > 7.4:                       # 注记全是 4~6.7pt 的小字
-                continue
-            out.append((fitz.Rect(ln["bbox"]), t, sz))
+            # 按**字号**把一行切成若干段：MuPDF 有时把浮在行上方的粗糙度小字
+            # （3.9pt 的 `125`、`32`）并进 `FINISH: … MAX.; … ON ALL` 这一行
+            # （实测随 CAD 导出方式而异），整行文本不再是纯数字，parse() 就认不出
+            # 粗糙度值，成品上整句「表面粗糙度…」静默消失。
+            groups = []
+            for sp in ln["spans"]:
+                if groups and abs(sp["size"] - groups[-1][-1]["size"]) < 0.8:
+                    groups[-1].append(sp)
+                else:
+                    groups.append([sp])
+            for g in groups:
+                t = "".join(s["text"] for s in g)
+                if not t.strip():
+                    continue
+                sz = max(s["size"] for s in g)
+                if sz > 7.4:                       # 注记全是 4~6.7pt 的小字
+                    continue
+                r = fitz.Rect(g[0]["bbox"])
+                for s in g[1:]:
+                    r |= fitz.Rect(s["bbox"])
+                out.append((r, t, sz))
     if not any("UNLESS OTHERWISE" in t.upper() for _r, t, _z in out):
         return []
     # 以 UNLESS 行为锚，取其左界与 y 起点，收同一栏内、其下的行

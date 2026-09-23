@@ -83,6 +83,24 @@ def apx_step(tag, pdf):
     step("%s 附录分页（A、B 各自另起一页）" % tag, ok, detail)
 
 
+def nav_step(pdf):
+    """R 级书签：标题块与附录 A/B 自动进 PDF 大纲，且每条书签落在标题所在页。"""
+    try:
+        import pymupdf as fitz
+    except ImportError:
+        import fitz
+    if not os.path.exists(pdf):
+        step("R 级书签", False, "成品不存在")
+        return
+    with fitz.open(pdf) as d:
+        toc = d.get_toc()
+        bad = [t for lv, t, p in toc if "".join(t.split())[:6] not in "".join(d[p - 1].get_text().split())]
+    titles = [t for _, t, _ in toc]
+    ok = len(toc) >= 5 and any(t.startswith("附录 A") for t in titles) and any(t.startswith("附录 B") for t in titles) \
+        and not bad
+    step("R 级书签（标题 + 附录自动进大纲、落点正确）", ok, "%d 条%s" % (len(toc), "；落点不符 %s" % bad[:3] if bad else ""))
+
+
 def run(args, cwd=None):
     t = time.time()
     r = subprocess.run([sys.executable, *args], cwd=cwd, env=ENV, capture_output=True,
@@ -142,6 +160,7 @@ def main():
     if rc:
         report("R build", log)
     apx_step("R 级", os.path.join(OUT, "translated", "mud_motor_manual_中文_v01.pdf"))
+    nav_step(os.path.join(OUT, "translated", "mud_motor_manual_中文_v01.pdf"))
 
     # ---- P 级：图纸叠印（examples/stator-drawing）
     rc, log, dt = run([os.path.join(SCRIPTS, "translate_pdf.py"), "stator_housing_drawing.pdf"], cwd=OUT)

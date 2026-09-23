@@ -321,7 +321,7 @@ def prepare(pdf, outroot, dpi):
     _write_once(os.path.join(cdir, "_engine.py"), ENGINE % HERE)
     if level in ("P", "S"):
         # 保位叠印：骨架直接是叠印构建 + 六道关（S 级另见 references/slides.md 的 slidekit 装配）
-        dstem = re.sub(r"\\W+", "_", stem).strip("_").lower() or "doc"
+        dstem = re.sub(r"\W+", "_", stem).strip("_").lower() or "doc"
         if dstem[0].isdigit():
             dstem = "d" + dstem
         _write_once(os.path.join(cdir, "build.py"),
