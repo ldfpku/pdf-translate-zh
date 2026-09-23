@@ -8,16 +8,18 @@
 
 （macOS / Linux 用 python3；Windows 用 py 或 python。）
 
-逐项报 OK / WARN / FAIL，并给出修复命令：
+逐项报 OK / WARN / FAIL，并给出修复命令（依赖一律装进技能私有目录，不碰系统 Python ——
+macOS Homebrew / 新版 Debian·Ubuntu 的系统 Python 禁止直接 pip，PEP 668）：
   · Python ≥ 3.9；必需包 PyMuPDF、reportlab、Pillow、numpy、fontTools；
     可选包 scipy（件号气泡）、torch（插图超分）
   · 中文字体：PyMuPDF 用 / ReportLab 用各自解析到哪个文件，缺粗体、缺常用符号时提醒
   · 缓存目录可写；插图超分将用哪个后端（torch / onnxruntime / Lanczos 兜底）与权重是否就位
---install 会用当前解释器 pip 安装缺失的**必需**包（不装 torch —— 体积大，按需自行装）。
+--install 把缺失的必需包装进技能私有目录（= bootstrap.py；不装 torch —— 体积大，用 --fix）。
 --sr      预先下载并校验超分权重（67 MB，多个下载源依次尝试；PDF_ZH_SR_URL 可指定自己的镜像）
---fonts   把本机的 Noto/思源 CJK（CFF）简体常规+粗体转成 TrueType 存进用户缓存
-          （共约 2~4 分钟，只做一次）：Linux 上常见只有 CFF 版，不转则重排路线没有粗体、
-          叠印路线文本层图号不可检索且成品不能子集化。
+--fonts   把本机的 CFF 中文字体简体常规+粗体转成 TrueType 存进用户缓存（只做一次）：
+          Linux 转 Noto/思源 CJK（约 2~4 分钟）—— 不转则重排路线没有粗体、叠印路线文本层
+          图号不可检索且成品不能子集化；macOS 转苹方 SC（约 30 秒）—— 不转只能用华文黑体，
+          ° ′ ″ · 是全角字宽、粗体不明显。平时入口脚本会自动转，不必手动跑。
 返回码：有 FAIL 为 1，否则 0。
 """
 import importlib
@@ -35,12 +37,16 @@ REQUIRED = [("pymupdf", "PyMuPDF", "fitz"), ("reportlab", "reportlab", None),
 OPTIONAL = [("scipy", "scipy", "件号气泡 bubbles.py / 部分图内检测")]
 
 
+BOOT = f'"{sys.executable}" "{os.path.join(HERE, "bootstrap.py")}"'
+
+
 def torch_hint():
     """按平台给出最合适的超分依赖安装建议。"""
     py = f'"{sys.executable}" -m pip install'
     if sys.platform == "darwin":
-        return (f"{py} torch   （Apple 芯片自动用 MPS 加速；装不了 torch 时：{py} onnxruntime，"
-                "再从有 torch 的机器 `sr.py --export-onnx` 拷一个 ONNX 模型过来）")
+        # Homebrew 的系统 Python 禁止直接 pip（PEP 668）→ 一律经 bootstrap 装进技能私有目录
+        return (f"{BOOT} --sr   （自动装 torch 到技能私有目录，Apple 芯片用 MPS 加速；装不了 torch 时"
+                "在 config.json 配 sr_onnx_url，改装约 25 MB 的 onnxruntime）")
     if sys.platform.startswith("win"):
         return ("有 NVIDIA 显卡：按 https://pytorch.org 选择器给的命令装 CUDA 版 torch（约 2.5 GB）；"
                 f"没有：{py} onnxruntime（约 25 MB）+ 拷 ONNX 模型，或 {py} torch --index-url "
@@ -87,7 +93,7 @@ def main(argv):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
         pass
-    pip = f'"{sys.executable}" -m pip install'
+    boot_fix = f"{BOOT}   （装进技能私有目录，不碰系统 Python；= doctor.py --install）"
     print(f"pdf-translate-zh 环境自检   Python {sys.version.split()[0]}  ({sys.platform})")
     print(f"  技能脚本目录：{HERE}\n")
 
@@ -101,31 +107,18 @@ def main(argv):
         m = _import(mod, alt)
         if m is None:
             missing.append(pkg)
-            say("FAIL", f"缺少 {pkg}", f"{pip} {pkg}")
+            say("FAIL", f"缺少 {pkg}", boot_fix)
         else:
             say("OK", f"{pkg} {getattr(m, '__version__', getattr(m, 'VersionBind', ''))}")
     if missing and "--install" in argv:
-        print(f"  … 安装 {' '.join(missing)}")
-        r = subprocess.run([sys.executable, "-m", "pip", "install", *missing],
-                           capture_output=True, text=True)
-        print((r.stdout or "")[-800:])
-        if r.returncode:
-            err = (r.stderr or "")
-            print(err[-800:])
-            if "externally-managed" in err or "externally managed" in err:
-                # macOS Homebrew / 新版 Debian·Ubuntu 的系统 Python 禁止直接 pip（PEP 668）
-                venv = os.path.join(os.path.expanduser("~"), ".venvs", "pdf-translate-zh")
-                pyv = os.path.join(venv, "Scripts" if sys.platform.startswith("win") else "bin", "python")
-                req = os.path.join(HERE, "requirements.txt")
-                print("  这台机器的系统 Python 不允许直接 pip 安装（PEP 668）。建一个专用虚拟环境：\n"
-                      f"    {sys.executable} -m venv {venv}\n"
-                      f"    {pyv} -m pip install -r {req}\n"
-                      f"  之后一律用 {pyv} 运行本技能的脚本。")
-            return 1
+        # 开头的 bootstrap.ensure(install=True) 已按 pip --target 装进私有目录（不受 PEP 668 限制）；
+        # 走到这里说明它失败了，原因已在上方 [bootstrap] 行打印
+        print("  自动安装未成功：多半是网络或 pip 源不可用。设 PDF_ZH_PIP_INDEX 指向可用的 pip 源后重跑。")
+        return 1
     for mod, pkg, why in OPTIONAL:
         m = _import(mod)
         if m is None:
-            say("WARN", f"未装 {pkg}（可选：{why}）", f"{pip} {pkg}")
+            say("WARN", f"未装 {pkg}（可选：{why}）", boot_fix)
         elif mod == "torch":
             dev = "CPU"
             try:
@@ -140,7 +133,7 @@ def main(argv):
             say("OK", f"{pkg} {getattr(m, '__version__', '')}")
     fz = _import("pymupdf", "fitz")
     if fz is not None and _import("pymupdf") is None:
-        say("WARN", "只有旧名 `fitz` 可用（PyMuPDF < 1.24.3）", f"{pip} -U PyMuPDF")
+        say("WARN", "只有旧名 `fitz` 可用（PyMuPDF < 1.24.3）", f'"{sys.executable}" -m pip install -U PyMuPDF')
     if _status["FAIL"]:
         print("\n必需包未装齐，先按上面的命令安装再重跑。")
         return 1
@@ -160,7 +153,7 @@ def main(argv):
                 lvl, fix = "FAIL", f"设环境变量 {fontkit._ENV[role]} 或把字体放进 {os.path.join(fontkit.SKILL_ROOT, 'fonts')}"
             elif "内置" in (src or "") or "退回" in (src or "") or "缺陷" in (src or ""):
                 lvl = "WARN"
-                fix = ("可用但非最佳：先试 `python doctor.py --fonts`（把本机 Noto CJK 转成 TrueType）；"
+                fix = ("可用但非最佳：先试 `python doctor.py --fonts`（把本机 Noto CJK / 苹方转成 TrueType）；"
                        "或设环境变量 PDF_ZH_FONT / PDF_ZH_FONT_BOLD 指向微软雅黑/思源黑体 TTF；"
                        "技能目录可写时也可把字体放进技能 fonts/")
             say(lvl, f"{role:<8} {who:<11} {os.path.basename(str(p))}  [{src}]", fix)
@@ -171,6 +164,10 @@ def main(argv):
     if zr and zr == zb:
         say("WARN", "ReportLab 的中文粗体与常规体是同一个文件 —— 标题不会显示为粗体",
             "`python doctor.py --fonts`，或设 PDF_ZH_FONT_BOLD 指向 TrueType 中文粗体（如 msyhbd.ttc）")
+    import bootstrap
+    if bootstrap._mac_fonts_pending(fontkit):
+        say("WARN", "苹方尚未转成 TrueType，暂用华文黑体（° ′ ″ · 为全角字宽，粗体不明显）",
+            "`python3 doctor.py --fonts`（约 30 秒，只做一次；翻译入口也会自动转）")
     print("  提示：各机器字体不同，排版度量会略有差异；要逐字节一致，把同一套字体放进技能 fonts/。")
 
     print("\n[3] 缓存与插图超分")

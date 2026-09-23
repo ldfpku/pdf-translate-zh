@@ -13,11 +13,14 @@ import math
 import os
 import sys
 
-import numpy as np
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
-
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "..", "skills", "pdf-translate-zh", "scripts"))
+import bootstrap  # noqa: E402  —— 依赖装在技能私有目录（Homebrew Python 等禁止系统 pip）
+bootstrap.ensure(quiet=True)
+
+import numpy as np  # noqa: E402
+from PIL import Image, ImageDraw, ImageFilter, ImageFont  # noqa: E402
+
 import fontkit  # noqa: E402
 
 FONT_B = fontkit.find("latin-bold", required=False) or fontkit.find("zh-bold")

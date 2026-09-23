@@ -11,14 +11,18 @@ Tethys Downhole Tools、SWI-650-SS、650 Drilling Shock Sub 及全部零件号�
 import os
 import sys
 
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import ParagraphStyle
-from reportlab.platypus import (BaseDocTemplate, PageTemplate, Frame, Paragraph, Spacer, Table,
-                                TableStyle, Image, PageBreak, Flowable, KeepTogether, NextPageTemplate)
-from reportlab.platypus.tableofcontents import TableOfContents
-
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(HERE, "..", "..", "skills", "pdf-translate-zh", "scripts"))
+import bootstrap  # noqa: E402  —— 依赖装在技能私有目录（Homebrew Python 等禁止系统 pip）
+bootstrap.ensure(quiet=True)
+
+from reportlab.lib import colors  # noqa: E402
+from reportlab.lib.pagesizes import letter  # noqa: E402
+from reportlab.lib.styles import ParagraphStyle  # noqa: E402
+from reportlab.platypus import (BaseDocTemplate, PageTemplate, Frame, Paragraph, Spacer, Table,  # noqa: E402
+                                TableStyle, Image, PageBreak, Flowable, KeepTogether, NextPageTemplate)
+from reportlab.platypus.tableofcontents import TableOfContents  # noqa: E402
+
 sys.path.insert(0, HERE)
 import make_figures  # noqa: E402
 

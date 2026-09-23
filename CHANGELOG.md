@@ -2,6 +2,23 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.1.1] - 2026-09-24
+
+macOS 本机全流程验证（macOS 26 / Apple Silicon；Homebrew Python 3.14 与系统自带 Python 3.9.6 各跑一遍：
+冒烟测试、两份效果展示样例端到端复现、install.sh / setup.sh、超分 torch MPS）后的针对性修复。
+Windows / Linux 行为不变。
+
+### 修复
+- **macOS 中文字体**：苹方是 CFF 字体，引擎此前只能退到华文黑体 —— `°` `′` `″` `·` 为全角字宽（「90°」排成「90 °」）、
+  粗体与常规体几乎拉不开。现在首次运行时自动把苹方 SC 常规 / 中粗转成 TrueType 缓存（约 30 秒，只做一次），
+  苹方缺的 `◦` 由 `○` 缩排补出；`doctor.py --fonts` 也可手动触发，未转换时 doctor 报 WARN。
+- **Python 3.9**（macOS 自带的 `/usr/bin/python3`）：只能装到 PyMuPDF 1.26，缺 `Rect.get_area()`，定级第一步即崩。
+  `bootstrap.ensure()` 给旧版补上缺的 API（新版不受影响）；CI 矩阵加 3.9 与 3.14，三系统都跑。
+- **Homebrew Python（PEP 668 禁止系统 pip）**：示例与测试生成脚本（`make_source.py`、`make_figures.py`、`make_drawing.py`、
+  `gen_testdocs.py`、`gen_holdout.py`）直接 `import reportlab` 而不经 bootstrap，单独运行即报缺包 —— 已改为先挂上技能私有依赖目录；
+  `doctor.py` 的修复命令不再给 `python3 -m pip install …`（在这类 Python 上必被拒），一律指向 `bootstrap.py` 私有目录安装。
+- `python3 fontkit.py` 单独运行时未挂私有依赖目录，打印的字体解析结果与实际不符。
+
 ## [1.1.0] - 2026-09-24
 
 ### 新增

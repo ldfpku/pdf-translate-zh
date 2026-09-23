@@ -209,7 +209,7 @@ claude --model qwen3:30b
 - **Python 3.9+**（Windows / macOS / Linux，x86_64 与 Apple Silicon 均可）。没有 Python 时，`setup.sh` / `setup.ps1` 会尝试用 Homebrew / winget / apt 自动装。
 - 其余**全部自动**：
   - Python 依赖（PyMuPDF、reportlab、Pillow、numpy、fontTools、scipy）装进用户缓存下的私有目录，按 Python 版本和平台分开；系统里已有的包直接复用。下载源依次尝试 官方 PyPI → 清华 → 阿里云。
-  - 中文字体：优先用系统字体（Windows 微软雅黑/宋体，macOS 苹方/华文，Linux Noto CJK）；Linux 上的 CFF 版 Noto CJK 自动转成 TrueType；一个中文字体都没有时用 PyMuPDF 内置字体兜底（无粗体，建议 `sudo apt install fonts-noto-cjk`）。
+  - 中文字体：优先用系统字体（Windows 微软雅黑/宋体，macOS 苹方，Linux Noto CJK）；这两者是 CFF 字体，首次使用时自动转成 TrueType 缓存（macOS 约 30 秒、Linux 约 2~4 分钟）；一个中文字体都没有时用 PyMuPDF 内置字体兜底（无粗体，建议 `sudo apt install fonts-noto-cjk`）。
   - 插图超分：只有检测到低清位图时才装后端——Apple Silicon 用 MPS 版 torch，NVIDIA 显卡用 CUDA 版，其他用 CPU 版（配置了 `sr_onnx_url` 时改用更轻的 ONNX Runtime）；装不上就退回高质量插值，不影响出稿。
 
 缓存位置：Windows `%LOCALAPPDATA%\pdf-translate-zh\cache`，macOS / Linux `~/.cache/pdf-translate-zh`（可用 `PDF_ZH_CACHE` 改）。

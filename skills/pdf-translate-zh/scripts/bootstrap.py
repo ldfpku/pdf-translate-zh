@@ -230,27 +230,70 @@ def ensure(install=True, quiet=False):
         if still:
             raise RuntimeError("依赖安装后仍缺：%s" % ", ".join(still))
         log("  [bootstrap] 依赖就绪")
+    _compat_pymupdf()
     _DONE.add("core")
     return not missing or install
 
 
-# ---------------------------------------------------------------- 中文字体
-def ensure_fonts(log=None):
-    """Linux 上只有 Noto/思源 CJK（CFF）时，一次性转成 TrueType（2~4 分钟，之后走缓存）。
+def _compat_pymupdf():
+    """旧版 PyMuPDF 的 API 补丁：只补缺的，新版上什么都不做。
 
+    Python 3.9 最高只能装到 PyMuPDF 1.26.x（1.27 起要求 3.10+），它的 Rect/IRect 没有
+    `get_area()` —— 引擎各处都在用。macOS 自带的 /usr/bin/python3 就是 3.9。
+    """
+    try:
+        import pymupdf as fz
+    except ImportError:
+        try:
+            import fitz as fz
+        except ImportError:
+            return
+
+    def get_area(self, *args):             # 与 PyMuPDF 1.27 的 _rect_area 同义
+        unit = args[0] if args else "px"
+        u = {"px": (1, 1), "in": (1.0, 72.0), "cm": (2.54, 72.0), "mm": (25.4, 72.0)}
+        return (u[unit][0] / u[unit][1]) ** 2 * self.width * self.height
+    for cls in (getattr(fz, "Rect", None), getattr(fz, "IRect", None)):
+        if cls is not None and not hasattr(cls, "get_area"):
+            cls.get_area = get_area
+
+
+# ---------------------------------------------------------------- 中文字体
+def _mac_fonts_pending(fontkit):
+    """macOS：有苹方、但还没转成 TrueType（此时实际用的是华文黑体）。"""
+    if sys.platform != "darwin" or "pingfang.ttc" not in fontkit._index():
+        return False
+    src = fontkit._SOURCE.get(("zh", True)) or ""
+    if src.startswith(("环境变量", "技能 fonts/")):     # 用户自己指定了字体，不动
+        return False
+    return os.sep + "converted" + os.sep not in fontkit.find("zh", reportlab=True)
+
+
+def ensure_fonts(log=None):
+    """中文字体只有 CFF 版时，一次性转成 TrueType（之后走缓存）。
+
+    · Linux：只有 Noto/思源 CJK（CFF）→ 转换（2~4 分钟）；
+    · macOS：苹方是 CFF，不转就只能用华文黑体（° ′ ″ · 全角、粗体不明显）→ 转苹方 SC（约 30 秒）。
     在「开始一份文档」的入口（translate_pdf、build.py 的 _engine）调用，不在每个脚本的
-    快速路径里调用。其他平台、或已有可用 TrueType 中文字体时立即返回。
+    快速路径里调用。Windows、或已有可用 TrueType 中文字体时立即返回。
     `PDF_ZH_NO_AUTOFONTS=1` 可关掉。
     """
     if "fonts" in _DONE or str(cfg("no_autofonts", "0")) == "1":
         return
     _DONE.add("fonts")
-    if not sys.platform.startswith("linux"):
+    if not (sys.platform.startswith("linux") or sys.platform == "darwin"):
         return
     log = log or (lambda *a: print(*a, file=sys.stderr, flush=True))
     sys.path.insert(0, HERE)
     try:
         import fontkit
+        if sys.platform == "darwin":
+            fontkit.find("zh", reportlab=True)
+            if _mac_fonts_pending(fontkit):
+                with _Lock(os.path.join(cache_dir(), "fonts.lock"), stale=1800):
+                    log("  [bootstrap] 把系统苹方（CFF）转成 TrueType（约 30 秒，只做一次）…")
+                    fontkit.convert_system_cjk(verbose=False)
+            return
         r = fontkit.find("zh", reportlab=True)
         src = fontkit._SOURCE.get(("zh", True)) or ""
         if r != fontkit.find("zh-bold", reportlab=True) and "缺陷" not in src and "内置" not in src:
@@ -355,10 +398,11 @@ def setup(with_sr=False, check_only=False):
         same = fontkit.find("zh", reportlab=True) == fontkit.find("zh-bold", reportlab=True)
     except Exception:
         same = True
-    if (same or "缺陷" in src or "内置" in src) and not check_only:
+    if (same or "缺陷" in src or "内置" in src or _mac_fonts_pending(fontkit)) and not check_only:
         res = fontkit.convert_system_cjk()
         if any(st in ("已转换", "已更新别名映射") for _r, _d, st in res):
-            print("  字体：已把本机 Noto/思源 CJK 转成 TrueType（一次性，已缓存）")
+            print("  字体：已把本机 %s 转成 TrueType（一次性，已缓存）"
+                  % ("苹方 SC" if sys.platform == "darwin" else "Noto/思源 CJK"))
     for role in ("zh", "zh-bold"):
         p = fontkit.find(role, reportlab=True)
         print("  字体 %-7s → %s  [%s]" % (role, os.path.basename(p), fontkit._SOURCE.get((role, True))))

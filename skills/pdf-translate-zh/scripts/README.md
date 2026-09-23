@@ -11,7 +11,7 @@
 
 | 文件 | 用途 |
 |---|---|
-| `bootstrap.py` | **环境全自动**：入口脚本自动调用，缺包装进私有目录、Linux 字体自动转换、超分后端按需自动装；`python3 bootstrap.py [--sr]` 一次配齐 |
+| `bootstrap.py` | **环境全自动**：入口脚本自动调用，缺包装进私有目录、CFF 中文字体自动转 TrueType（Linux Noto CJK / macOS 苹方）、超分后端按需自动装；`python3 bootstrap.py [--sr]` 一次配齐 |
 | `doctor.py` | 只报告的体检：依赖、中文字体解析、缓存、超分权重逐项自检（`--selftest` 引擎冒烟，`--install` 补装必需包，`--fonts` 把 Noto CJK 转 TrueType） |
 | `translate_pdf.py` | **每份新文档的入口**：定级（写 `data/route.json`）+ 素材提取 + 生成内容层骨架。R/H 级：`content/_engine.py build.py content.py terms.py`；P/S 级：`build.py`（叠印 + 六道关，`--dump` 导出待译单元）+ `<名>_dict.py` |
 | `route.py` | 单独定级：逐页判 R/H/P/S（V2 三级 + 幻灯片），给出 P 级页清单 |
@@ -119,8 +119,8 @@ vectext.overlay(doc[pi], RASTER_ZH[pi])          # 图内位图英文
 |---|---|
 | 必需包 | PyMuPDF（`import pymupdf`，旧版退回 `fitz`）、reportlab、Pillow、numpy、fonttools |
 | 可选包 | scipy（件号气泡）；插图超分二选一：torch（macOS 自带 MPS；Windows+NVIDIA 装 CUDA 版）或 onnxruntime + ONNX 模型；都没有时 Lanczos 兜底 |
-| Python 命令 | macOS / Linux 用 `python3`，Windows 用 `py`；系统 Python 禁止 pip（PEP 668）时 `doctor.py --install` 给出建虚拟环境的命令 |
-| 中文字体 | `fontkit` 按「环境变量 → 技能 `fonts/` → 系统字体 → PyMuPDF 内置 Droid Sans Fallback」解析。Windows 仍优先微软雅黑；macOS 取苹方/华文黑体；Linux 取 Noto/思源/文泉驿。ReportLab 只认 TrueType 轮廓，CFF 字体自动跳过 |
+| Python 命令 | macOS / Linux 用 `python3`，Windows 用 `py`；系统 Python 禁止 pip（PEP 668，如 macOS Homebrew）不受影响：依赖一律 `pip --target` 装进技能私有目录，`doctor.py` 的修复命令也指向 `bootstrap.py` |
+| 中文字体 | `fontkit` 按「环境变量 → 技能 `fonts/` → 系统字体 → PyMuPDF 内置 Droid Sans Fallback」解析。Windows 仍优先微软雅黑；macOS 取苹方（CFF，首次自动转 TrueType，补 ◦）、转换前退回华文黑体；Linux 取 Noto/思源/文泉驿。ReportLab 只认 TrueType 轮廓，CFF 字体自动跳过 |
 | 固定字体 | 环境变量 `PDF_ZH_FONT`、`PDF_ZH_FONT_BOLD`（值为字体文件路径，TTC 可写 `路径#序号`），或把字体文件放进技能根目录的 `fonts/` —— 各机器产出一致 |
 | 缓存 | 抽出的 TTC 子字体与超分权重放用户缓存（Windows `%LOCALAPPDATA%\pdf-translate-zh\cache`，其他 `~/.cache/pdf-translate-zh`）；`PDF_ZH_CACHE` 可改 |
 | 超分权重 | `RealESRGAN_x4plus.pth` 67 MB 不随技能分发，首次超分或 `doctor.py --sr` 时依次从 GitHub / HF 镜像下载并校验；`PDF_ZH_SR_URL` 指定自己的镜像；离线放进 `scripts/models/` 或设 `PDF_ZH_SR_WEIGHTS`；ONNX 模型设 `PDF_ZH_SR_ONNX` 或放 `scripts/models/RealESRGAN_x4plus.onnx` |

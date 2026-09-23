@@ -24,7 +24,10 @@
       「675‑200‑011」变成不可检索的非断连字符 → 叠印用字体**优先 TrueType、
       且无 ASCII 别名**，CFF 只作最后手段；
     · Linux 常见只有 Noto CJK（CFF）：`python doctor.py --fonts` 一次性转成
-      TrueType（每个约 1 分钟，去掉别名映射）存进缓存，两条路线从此都用它。
+      TrueType（每个约 1 分钟，去掉别名映射）存进缓存，两条路线从此都用它；
+    · macOS 的苹方也是 CFF，现成 TrueType 只剩华文黑体 —— 它的 ° ′ ″ · 是全角字宽
+      （「90°」排成「90 °」）、Medium 与 Light 几乎拉不开粗细 → 同样首次运行时把
+      苹方 SC 常规/中粗转成 TrueType（每个约 15 秒），缺的 ◦ 由 ○ 缩排补出。
 
 用法
     import fontkit
@@ -56,14 +59,14 @@ _ENV = {
 # 不存在的自然跳过。雅黑排第一：与历史交付稿的度量一致。
 _CANDIDATES = {
     "zh": ["msyh.ttc", "msyh.ttf", "NotoSansCJKsc-Regular-tt.ttf", "Deng.ttf", "simhei.ttf",
-           "PingFang.ttc", "STHeiti Light.ttc", "Hiragino Sans GB.ttc",
+           "PingFangSC-Regular-tt.ttf", "PingFang.ttc", "STHeiti Light.ttc", "Hiragino Sans GB.ttc",
            "NotoSansCJKsc-Regular.otf", "NotoSansSC-Regular.otf",
            "NotoSansSC-Regular.ttf", "SourceHanSansSC-Regular.otf",
            "SourceHanSansCN-Regular.otf", "NotoSansCJK-Regular.ttc",
            "wqy-microhei.ttc", "wqy-zenhei.ttc", "DroidSansFallbackFull.ttf",
            "Arial Unicode.ttf"],
     "zh-bold": ["msyhbd.ttc", "msyhbd.ttf", "NotoSansCJKsc-Bold-tt.ttf", "Dengb.ttf", "simhei.ttf",
-                "PingFang.ttc", "STHeiti Medium.ttc",
+                "PingFangSC-Semibold-tt.ttf", "PingFang.ttc", "STHeiti Medium.ttc",
                 "NotoSansCJKsc-Bold.otf", "NotoSansSC-Bold.otf",
                 "NotoSansSC-Bold.ttf", "SourceHanSansSC-Bold.otf",
                 "SourceHanSansCN-Bold.otf", "NotoSansCJK-Bold.ttc",
@@ -177,7 +180,7 @@ def _pick_face(faces, role):
             s -= 2
         boldish = any(k in txt for k in ("bold", "semibold", "medium", "heavy", "black"))
         if role in _BOLD_ROLES:
-            s += 2 if boldish else 0
+            s += (3 if "bold" in txt else 2) if boldish else 0
         else:
             s -= 2 if boldish else 0
             s += 1 if any(k in txt for k in ("regular", "normal", "book")) else 0
@@ -322,7 +325,7 @@ def find(role="zh", reportlab=False, required=True):
             from_skill = p.startswith(os.path.join(SKILL_ROOT, "fonts"))
             conv = os.sep + "converted" + os.sep in p
             cand = (0 if from_skill else miss, order, q,
-                    "技能 fonts/" if from_skill else ("缓存（doctor --fonts 转换）" if conv else "系统字体"))
+                    "技能 fonts/" if from_skill else ("缓存（CFF→TrueType 转换）" if conv else "系统字体"))
             if best is None or cand[:2] < best[:2]:
                 best = cand
             if cand[0] == 0:                 # 首个全覆盖者即取，不必再比
@@ -419,6 +422,7 @@ def convert_to_truetype(src, dst, max_err=1.0):
         setattr(maxp, a, 0)
     maxp.maxZones = 1
     font["post"].formatType = 3.0          # 6 万余字形放不进 format 2 的名表
+    _synth_white_bullet(font)
     _dealias_cmap(font)
     font.sfntVersion = "\x00\x01\x00\x00"
     os.makedirs(os.path.dirname(dst), exist_ok=True)
@@ -428,18 +432,64 @@ def convert_to_truetype(src, dst, max_err=1.0):
     return dst
 
 
-def convert_system_cjk(verbose=True):
-    """找本机的 Noto/思源 CJK（CFF）简体常规+粗体，转成 TrueType 存进缓存。
+def _synth_white_bullet(font):
+    """补 U+25E6 ◦（二级项目符号，ESSENTIAL 之一）：把 ○ 缩到 • 的大小、落在 • 的位置。
 
-    返回 [(角色, 目标路径, 状态)]。已转换过的跳过；转换后清空解析缓存。
+    苹方缺这个字形；不补的话缺字排序会把它排到全角符号的华文黑体后面。
+    只在已转成 glyf 轮廓的字体上调用。"""
+    cmap = font.getBestCmap()
+    if 0x25E6 in cmap or 0x25CB not in cmap or 0x2022 not in cmap:
+        return
+    from fontTools.pens.transformPen import TransformPen
+    from fontTools.pens.ttGlyphPen import TTGlyphPen
+    glyf = font["glyf"]
+    dot, ring = glyf[cmap[0x2022]], glyf[cmap[0x25CB]]
+    dot.recalcBounds(glyf)
+    ring.recalcBounds(glyf)
+    if not dot.numberOfContours or not ring.numberOfContours or ring.xMax <= ring.xMin:
+        return
+    s = (dot.xMax - dot.xMin) / (ring.xMax - ring.xMin)
+    dx = (dot.xMin + dot.xMax) / 2 - s * (ring.xMin + ring.xMax) / 2
+    dy = (dot.yMin + dot.yMax) / 2 - s * (ring.yMin + ring.yMax) / 2
+    pen = TTGlyphPen(None)
+    ring.draw(TransformPen(pen, (s, 0, 0, s, dx, dy)), glyf)
+    g = pen.glyph()
+    g.recalcBounds(glyf)
+    name = "uni25E6.synth"
+    order = font.getGlyphOrder()
+    if name not in order:
+        order.append(name)
+        font.setGlyphOrder(order)
+    glyf.glyphOrder = order
+    glyf.glyphs[name] = g
+    font["hmtx"][name] = (font["hmtx"][cmap[0x2022]][0], g.xMin)
+    if "vmtx" in font:
+        font["vmtx"][name] = font["vmtx"][cmap[0x2022]]
+    for tag in ("hdmx", "LTSH"):               # 逐字形的可选表，长度须与字形数一致，删掉最省事
+        if tag in font:
+            del font[tag]
+    for t in font["cmap"].tables:
+        if t.isUnicode() and 0x2022 in t.cmap:
+            t.cmap[0x25E6] = name
+
+
+def convert_system_cjk(verbose=True):
+    """找本机的 CFF 中文字体简体常规+粗体，转成 TrueType 存进缓存。
+
+    Linux / Windows：Noto/思源 CJK；macOS：苹方 SC（Regular + Semibold，子字体由
+    `_pick_face` 选）。返回 [(角色, 目标路径, 状态)]。已转换过的跳过；转换后清空解析缓存。
     """
     global _INDEX
     out = []
-    targets = {"zh": "NotoSansCJKsc-Regular-tt.ttf", "zh-bold": "NotoSansCJKsc-Bold-tt.ttf"}
-    sources = {"zh": ["NotoSansCJKsc-Regular.otf", "NotoSansSC-Regular.otf",
-                      "SourceHanSansSC-Regular.otf", "NotoSansCJK-Regular.ttc"],
-               "zh-bold": ["NotoSansCJKsc-Bold.otf", "NotoSansSC-Bold.otf",
-                           "SourceHanSansSC-Bold.otf", "NotoSansCJK-Bold.ttc"]}
+    if sys.platform == "darwin":
+        targets = {"zh": "PingFangSC-Regular-tt.ttf", "zh-bold": "PingFangSC-Semibold-tt.ttf"}
+        sources = {"zh": ["PingFang.ttc"], "zh-bold": ["PingFang.ttc"]}
+    else:
+        targets = {"zh": "NotoSansCJKsc-Regular-tt.ttf", "zh-bold": "NotoSansCJKsc-Bold-tt.ttf"}
+        sources = {"zh": ["NotoSansCJKsc-Regular.otf", "NotoSansSC-Regular.otf",
+                          "SourceHanSansSC-Regular.otf", "NotoSansCJK-Regular.ttc"],
+                   "zh-bold": ["NotoSansCJKsc-Bold.otf", "NotoSansSC-Bold.otf",
+                               "SourceHanSansSC-Bold.otf", "NotoSansCJK-Bold.ttc"]}
     conv_dir = os.path.join(cache_dir(), "fonts", "converted")
     idx = _index()
     for role, tname in targets.items():
@@ -467,7 +517,8 @@ def convert_system_cjk(verbose=True):
             out.append((role, None, "本机没有可转换的 CFF 中文字体"))
             continue
         if verbose:
-            print(f"  转换 {os.path.basename(src)} → {tname}（约 1~2 分钟，勿中断）…", flush=True)
+            print(f"  转换 {os.path.basename(src)} → {tname}（约 {'15 秒' if sys.platform == 'darwin' else '1~2 分钟'}，勿中断）…",
+                  flush=True)
         convert_to_truetype(src, dst)
         out.append((role, dst, "已转换"))
     _INDEX = None
@@ -546,5 +597,8 @@ if __name__ == "__main__":
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
         pass
+    sys.path.insert(0, HERE)
+    import bootstrap                         # 挂上私有依赖目录：没有 fontTools 时解析结果与实际不符
+    bootstrap.ensure(quiet=True)
     for (r, rl), (p, s) in report().items():
         print("%-10s %-9s %s   [%s]" % (r, "reportlab" if rl else "pymupdf", p, s))

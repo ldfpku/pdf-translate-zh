@@ -875,7 +875,7 @@ T01 的检测框 112 px 宽（环 + 引线），中心比环心偏右 15 px；�
 
 ---
 
-## 九、跨机器与引擎整改（112~118）
+## 九、跨机器与引擎整改（112~120）
 
 **112 ⚠ extract 丢弃零面积线段 → 矢量图的引线不进图元簇。**
 旧判据 `r.get_area() < 1 → continue` 本意是去噪点，但竖直/水平的引线宽或高为 0，
@@ -931,3 +931,14 @@ U+F97E/U+FA08/U+F9E4 共用字形，PyMuPDF 反查取到的是别名 —— 渲�
 （三线表没有竖线时退回旧判据 + 80pt 行距上限）；区域内至少 2 个词。
 ⚠ `hybrid_overlay.table_rects_grid` **故意保留**图框线：图纸整页落进表格区、全部走行级
 通道，正是图纸需要的（剔除后段级通道把相隔 300pt 的「6-5/8 REG PIN」「… BOX」并成一条，实测）。
+
+**119 ⚠ macOS 退到华文黑体：`°` `′` `″` `·` 是全角字宽，粗体几乎看不出。**
+苹方与冬青黑体都是 CFF（ReportLab 不收、PyMuPDF 子集化失效，见 117），现成 TrueType 只剩华文黑体：
+「90°」排成「90 °」、页脚「A · B」字距发散、Medium 与 Light 拉不开 —— 闸门全绿，只有目检看得出。
+⇒ `bootstrap.ensure_fonts()` 在 macOS 首次运行时把苹方 SC Regular / Semibold 转成 TrueType（约 30 秒，缓存）；
+苹方缺 `◦`，转换时把 `○` 缩到 `•` 的大小补出（否则缺字排序又把它排到华文黑体后面）。
+`doctor.py` 在未转换时报 WARN。
+
+**120 ⚠ Python 3.9 只能装到 PyMuPDF 1.26，`Rect.get_area()` 不存在。**
+PyMuPDF 1.27 起要求 Python 3.10；macOS 自带的 `/usr/bin/python3` 正是 3.9.6，定级第一步就 AttributeError。
+CI 只测 3.10/3.12 时发现不了。⇒ `bootstrap.ensure()` 给旧版补上缺的 API（新版上不动）；CI 矩阵加 3.9（声明的最低版本）。

@@ -17,8 +17,13 @@ import math
 import os
 import sys
 
-from reportlab.lib.pagesizes import landscape, TABLOID
-from reportlab.pdfgen import canvas
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(HERE, "..", "..", "skills", "pdf-translate-zh", "scripts"))
+import bootstrap  # noqa: E402  —— 依赖装在技能私有目录（Homebrew Python 等禁止系统 pip）
+bootstrap.ensure(quiet=True)
+
+from reportlab.lib.pagesizes import landscape, TABLOID  # noqa: E402
+from reportlab.pdfgen import canvas  # noqa: E402
 
 W, H = landscape(TABLOID)          # 1224 × 792 pt
 FONT, BOLD = "Helvetica", "Helvetica-Bold"

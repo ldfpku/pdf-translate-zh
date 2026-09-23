@@ -3,6 +3,13 @@
 
     python3 tests/gen_testdocs.py [输出目录]
 """
+import os as _os
+import sys as _sys
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "..",
+                                  "skills", "pdf-translate-zh", "scripts"))
+import bootstrap  # noqa: E402  —— 单独运行时也能找到技能私有目录里的依赖
+bootstrap.ensure(quiet=True)
+
 from reportlab.lib.pagesizes import letter, landscape
 from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
                                 PageBreak, KeepTogether, Flowable)

@@ -4,7 +4,7 @@ description: 工业/石油/机械/工程技术类英文 PDF → 出版级简体�
 license: Apache-2.0
 compatibility: Python 3.9+（Windows / macOS / Linux）；依赖首次运行自动安装
 metadata:
-  version: "1.1.0"
+  version: "1.1.1"
   repository: https://github.com/ldfpku/pdf-translate-zh
 ---
 
@@ -405,12 +405,14 @@ NOTE→`note`「说明」、CAUTION→`caution`「注意」、WARNING→`warning
 - **环境全自动**（`scripts/bootstrap.py`，只用标准库）：入口脚本与工作区 `build.py` 开头调
   `bootstrap.ensure()`，缺包就 `pip install --target` 进用户缓存下的 `pydeps/<Python 版本-平台>/`
   （不碰系统 Python、不要管理员权限、绕开 PEP 668；PyPI → 清华 → 阿里云依次试；换 Python 版本自动另装一份；
-  文件锁防并发；子进程经 PYTHONPATH 继承）。Linux 只有 CFF 中文字体时首次自动转换（约 2~4 分钟，之后缓存）。
+  文件锁防并发；子进程经 PYTHONPATH 继承）。Linux 只有 CFF 中文字体时首次自动转换（约 2~4 分钟，之后缓存）；
+  macOS 首次自动把苹方 SC 转成 TrueType（约 30 秒）——不转就只能用华文黑体，° ′ ″ · 全角、粗体不明显。
+  Python 3.9（如 macOS 自带的 /usr/bin/python3）只能装到 PyMuPDF 1.26，缺的 API 由 bootstrap 自动补。
   排查用 `doctor.py`（只报告）；`doctor.py --fix` = `bootstrap.py --sr` 一次配齐。
 - 设置跟着技能走：把镜像地址写进技能根目录 `config.json`（模板 `config.example.json`：`pip_index`、
   `torch_index`、`sr_url`、`sr_onnx_url`…），每台电脑自动生效；同名环境变量 `PDF_ZH_<键名大写>` 优先。
 - 中文字体由 `scripts/fontkit.py` 解析：环境变量 `PDF_ZH_FONT` / `PDF_ZH_FONT_BOLD` →
-  技能 `fonts/` 目录 → 系统字体（Windows 雅黑、macOS 苹方/华文黑体、Linux Noto/思源/文泉驿）→
+  技能 `fonts/` 目录 → 转换缓存 → 系统字体（Windows 雅黑、macOS 苹方（转换后）/华文黑体、Linux Noto/思源/文泉驿）→
   PyMuPDF 内置 Droid Sans Fallback；CFF 字体与有 ASCII 别名的字体会被自动排到后面。
   **不要在脚本里写字体路径**，一律 `fontkit.find("zh")`。
   要各机器产出一致，把同一套字体放进 `fonts/`。

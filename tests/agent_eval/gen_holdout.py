@@ -7,6 +7,11 @@ Borealis Downhole Systems 为虚构品牌。
 import os
 import sys
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..",
+                                "skills", "pdf-translate-zh", "scripts"))
+import bootstrap  # noqa: E402  —— 依赖装在技能私有目录（Homebrew Python 等禁止系统 pip）
+bootstrap.ensure(quiet=True)
+
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_JUSTIFY
 from reportlab.lib.pagesizes import letter, landscape
