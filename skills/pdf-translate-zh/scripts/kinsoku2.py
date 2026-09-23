@@ -69,6 +69,34 @@ def _word_start(get, i, lo, n):
     return j if j > lo + 1 else i
 
 
+# ▼ 第五处补丁：**悬挂不出版心**。ReportLab 对「溢出的那个字符不能起行」的处理是
+# 让它悬挂在行尾 —— 于是全角「）」「，」的墨迹落进右页边，`check_margins` 报
+# 「版心外杂物」（实测：换成 PyMuPDF 内置字体后字宽一变，「……其头数（lobe）」
+# 的「）」就挂出版心 10 pt）。出版物的做法是**前推**：把断点往回挪到合法位置，
+# 被推下的字与标点一起进下一行，本行靠两端对齐补足。找不到合法断点（极窄栏、
+# 整行一个西文词）才维持悬挂。
+_HANG_TOL = 0.5          # pt：小于这个量的外溢看不出来，不值得多推一个字
+
+
+def _no_hang(get, wid, lo, i, room, nostart, noend):
+    """room = 本行剩余宽度（负数即外溢）。返回 (新断点, 新 room)。"""
+    if room >= -_HANG_TOL:
+        return i, room
+    j, over = i, -room
+    while j > lo + 1:
+        j -= 1
+        over -= wid(j)
+        if over > _HANG_TOL:
+            continue
+        a, b = get(j - 1), get(j)
+        if (b in nostart and b.strip()) or (a in noend and a.strip()):
+            continue
+        if a in _WORDCH and b in _WORDCH:
+            continue
+        return j, -over
+    return i, room
+
+
 def _patch_dumbsplit():
     _orig = _ts.dumbSplit
 
@@ -122,6 +150,10 @@ def _patch_dumbsplit():
                     extraSpace -= widths[i]
                     i += 1
                     hung += 1
+                # ▼ 本补丁五：挂出去仍超版心就改前推
+                i, extraSpace = _no_hang(lambda k: word[k], lambda k: widths[k],
+                                         lineStartPos, i, extraSpace, NOSTART,
+                                         getattr(_ts, "ALL_CANNOT_END", ""))
                 lines.append([extraSpace, word[lineStartPos:i].strip()])
                 try:
                     maxWidth = maxWidths[len(lines)]
@@ -201,6 +233,10 @@ def _patch_cjkfrag():
                         extraSpace -= U[i].width
                         i += 1
                         hung += 1
+                    i, extraSpace = _no_hang(lambda k: str(U[k]), lambda k: U[k].width,
+                                             lineStartPos, i, extraSpace, NOSTART,
+                                             getattr(_ts, "ALL_CANNOT_END", ""))
+                    widthUsed = maxWidth - extraSpace
                 lines.append(_pp.makeCJKParaLine(U[lineStartPos:i], maxWidth,
                                                  widthUsed, extraSpace,
                                                  lineBreak, calcBounds))

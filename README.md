@@ -6,6 +6,17 @@
 [![CI](https://github.com/ldfpku/pdf-translate-zh/actions/workflows/ci.yml/badge.svg)](https://github.com/ldfpku/pdf-translate-zh/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
+> [!CAUTION]
+> **数据合规声明｜使用前必读**
+>
+> - 本技能的排版引擎（`scripts/`）**完全在本机运行，不上传任何文档内容**；联网只用于下载 Python 依赖和可选的超分模型权重。
+> - **但翻译本身由你所用 AI 工具背后的大模型完成。** 使用云端公有模型（Claude、GPT、Gemini、DeepSeek 等在线服务）时，原文 PDF 的内容与译稿会发送给该服务商处理。
+> - 处理客户资料、受保密协议约束的技术文件、出口管制技术资料、含个人信息或其他受监管数据的文件之前，**你须自行确认**：符合所在地法律法规（例如中国《数据安全法》《个人信息保护法》及数据出境相关规定、欧盟 GDPR、美国出口管制 EAR/ITAR 等）、合同与保密义务，以及所在单位的数据安全制度。
+> - **敏感文档请用本地部署的大模型翻译**，让原文与译稿不出本机或内网，见下文 [本地模型方案](#本地模型方案敏感文档推荐)。
+> - 本项目按 Apache-2.0 以「现状」提供，作者不对使用者处理数据的合规性承担责任；本声明不构成法律意见。
+>
+> **Data compliance:** the layout engine runs entirely on your machine and never uploads document content, but the *translation* is produced by whatever LLM powers your AI tool. With a public cloud model, the source PDF and the translation are sent to that provider. Before processing confidential, contractual, export-controlled or personal data, make sure doing so complies with your local laws, contracts and company policy. For sensitive documents, use a locally hosted model (see *本地模型方案* below). Provided "AS IS" under Apache-2.0; not legal advice.
+
 > English summary: an Agent Skill that turns English industrial / oil & gas / mechanical engineering PDFs (manuals, specs, drawings, fillable forms, slide handouts) into publication-grade Simplified Chinese PDFs. It classifies each page (reflow R / hybrid H / in-place overlay P / slides S), translates text inside figures, rebuilds tables on a true grid, adds TOC links and bookmarks, and runs machine QA gates (content reconciliation, residual English, missing glyphs). Works on Windows, macOS and Linux; Python dependencies and CJK fonts are set up automatically on first run.
 
 ---
@@ -99,12 +110,55 @@ irm https://raw.githubusercontent.com/ldfpku/pdf-translate-zh/main/install.ps1 |
 
 Windows 下 `~` 即 `C:\Users\<用户名>`。各工具的目录约定在更新，以其官方文档为准；拿不准时用 `npx skills` 安装最省事。
 
+## 本地模型方案（敏感文档推荐）
+
+技能本身与模型无关：它只提供流程、规则与本地引擎，翻译由 AI 工具当前连接的模型完成。把工具接到**本机或内网部署的模型服务**，整条链路就不经过任何公有云。
+
+**Claude Code + Ollama**（Ollama v0.14 起提供 Anthropic 兼容接口，可直接驱动 Claude Code）：
+
+```bash
+ollama pull qwen3:30b            # 示例：选中文能力强、支持工具调用的模型
+ollama launch claude             # 一条命令启动（交互选择模型）
+```
+
+或手动指向本地服务（macOS / Linux）：
+
+```bash
+export ANTHROPIC_BASE_URL=http://localhost:11434
+export ANTHROPIC_AUTH_TOKEN=ollama
+export ANTHROPIC_API_KEY=""
+export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1   # 关掉遥测、错误上报、自动更新等非必要外联
+claude --model qwen3:30b
+```
+
+Windows PowerShell：
+
+```powershell
+$env:ANTHROPIC_BASE_URL = "http://localhost:11434"
+$env:ANTHROPIC_AUTH_TOKEN = "ollama"
+$env:ANTHROPIC_API_KEY = ""
+$env:CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1"
+claude --model qwen3:30b
+```
+
+**其他工具**：Codex 用 `ollama launch codex` 或 `codex --oss`；OpenCode、Cursor 等在各自配置里添加 Ollama / LM Studio / vLLM 提供的本地 OpenAI 兼容端点。
+
+**注意事项**
+
+- **确认模型真在本地**：Ollama 里名字带 `:cloud` 的模型运行在 Ollama 云端，不是本地；只用 `ollama list` 里已下载的本地模型。
+- **关掉会外联的功能**：本地模式下工具自带的联网搜索、网页抓取等仍可能把内容发出去，处理敏感文档时关闭它们。
+- **上下文窗口**：建议 ≥ 64k（Ollama 的默认值可能不够，在设置里或用环境变量 `OLLAMA_CONTEXT_LENGTH` 调大），否则长文档会被截断。
+- **模型选择**：优先中文能力强、工具调用稳定的模型（如 Qwen3 系列）；显存 24 GB 级别的显卡可运行 30B 级量化模型（上下文开大会多占显存）。
+- **质量预期**：本地模型的译文质量与工具调用稳定性通常不及顶级云端模型。技能的机器闸门（残留英文、缺字、内容对账等）能拦住大部分机械性问题，但**译文仍须人工审校**，重点看术语对照表与勘误说明。
+- **完全离线**：首次联网配好依赖后，在 `config.json` 设 `"no_autoinstall": "1"`，之后不再访问 PyPI；超分权重可事先放进 `scripts/models/`。
+- **自查**：可以断开外网跑一遍 `python tests/smoke_test.py` 和一份真实文档，确认整条链路离线可用。
+
 ## 运行环境
 
 - **Python 3.9+**（Windows / macOS / Linux，x86_64 与 Apple Silicon 均可）。没有 Python 时，`setup.sh` / `setup.ps1` 会尝试用 Homebrew / winget / apt 自动装。
 - 其余**全部自动**：
   - Python 依赖（PyMuPDF、reportlab、Pillow、numpy、fontTools、scipy）装进用户缓存下的私有目录，按 Python 版本和平台分开；系统里已有的包直接复用。下载源依次尝试 官方 PyPI → 清华 → 阿里云。
-  - 中文字体：优先用系统字体（Windows 微软雅黑/宋体，macOS 苹方/华文，Linux Noto CJK）；Linux 缺字体时自动下载并转换。
+  - 中文字体：优先用系统字体（Windows 微软雅黑/宋体，macOS 苹方/华文，Linux Noto CJK）；Linux 上的 CFF 版 Noto CJK 自动转成 TrueType；一个中文字体都没有时用 PyMuPDF 内置字体兜底（无粗体，建议 `sudo apt install fonts-noto-cjk`）。
   - 插图超分：只有检测到低清位图时才装后端——Apple Silicon 用 MPS 版 torch，NVIDIA 显卡用 CUDA 版，其他用 CPU 版（配置了 `sr_onnx_url` 时改用更轻的 ONNX Runtime）；装不上就退回高质量插值，不影响出稿。
 
 缓存位置：Windows `%LOCALAPPDATA%\pdf-translate-zh\cache`，macOS / Linux `~/.cache/pdf-translate-zh`（可用 `PDF_ZH_CACHE` 改）。

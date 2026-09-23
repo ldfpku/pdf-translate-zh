@@ -29,6 +29,23 @@ def step(name, ok, detail=""):
         _fails.append(name)
 
 
+def _gh(kind, title, lines):
+    """GitHub Actions 注解：未登录也能在运行页上看到，便于排查 CI 失败。"""
+    if not os.environ.get("GITHUB_ACTIONS"):
+        return
+    msg = "%0A".join(l.replace("%", "%25").replace("\r", "") for l in lines if l.strip())[:3500]
+    print("::%s title=%s::%s" % (kind, title, msg), flush=True)
+
+
+def report(name, log, tail=3000):
+    """失败时打印日志尾部；CI 上另把 FAIL / 报错行做成注解。"""
+    print(log[-tail:])
+    key = [l for l in log.splitlines()
+           if l.lstrip().startswith(("FAIL", "Traceback", "Error", "error"))
+           or "Error:" in l or l.startswith("  File ") or l.startswith("         (")]
+    _gh("error", "smoke: " + name, (key or log.splitlines())[-25:])
+
+
 def run(args, cwd=None):
     t = time.time()
     r = subprocess.run([sys.executable, *args], cwd=cwd, env=ENV, capture_output=True,
@@ -50,7 +67,15 @@ def main():
     rc, log, dt = run([os.path.join(SCRIPTS, "selftest.py")])
     step("引擎自检 selftest.py", rc == 0, "%.0fs" % dt)
     if rc:
-        print(log[-2000:])
+        report("selftest", log, 2000)
+    try:
+        import fontkit
+        src = ["%s: %s" % (r, fontkit.find(r, reportlab=True, required=False)) for r in ("zh", "zh-bold")]
+        src += ["来源: %s" % fontkit._SOURCE.get(("zh", True), "")]
+        print("  字体  " + "  |  ".join(src))
+        _gh("notice", "smoke: fonts", src)
+    except Exception as e:
+        print("  字体探测失败：%s" % e)
 
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import gen_testdocs
@@ -72,13 +97,13 @@ def main():
     step("R 级提取 translate_pdf.py", rc == 0 and os.path.exists(os.path.join(work, "data", "figures.json")),
          "%.0fs" % dt)
     if rc:
-        print(log[-2000:])
+        report("R extract", log, 2000)
     for f in ("build.py", "content.py", "terms.py"):
         shutil.copy(os.path.join(ROOT, "examples", "mud-motor-manual", f), os.path.join(work, "content", f))
     rc, log, dt = run([os.path.join(work, "content", "build.py")])
     step("R 级出稿 + 全部闸门", rc == 0 and "PASS" in log, "%.0fs" % dt)
     if rc:
-        print(log[-3000:])
+        report("R build", log)
 
     # ---- P 级：图纸叠印（examples/stator-drawing）
     rc, log, dt = run([os.path.join(SCRIPTS, "translate_pdf.py"), "stator_housing_drawing.pdf"], cwd=OUT)
@@ -89,7 +114,7 @@ def main():
     rc, log, dt = run([os.path.join(work, "content", "build.py")])
     step("P 级叠印 + 六道关", rc == 0 and "PASS" in log, "%.0fs" % dt)
     if rc:
-        print(log[-3000:])
+        report("P build", log)
 
     print("\n结论：" + ("全部通过" if not _fails else "失败 %d 项：%s" % (len(_fails), "、".join(_fails))))
     print("产物：" + OUT)

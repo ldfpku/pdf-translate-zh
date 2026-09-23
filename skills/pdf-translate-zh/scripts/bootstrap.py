@@ -256,6 +256,12 @@ def ensure_fonts(log=None):
         if r != fontkit.find("zh-bold", reportlab=True) and "缺陷" not in src and "内置" not in src:
             return
         with _Lock(os.path.join(cache_dir(), "fonts.lock"), stale=1800):
+            idx = fontkit._index()
+            if not any(n in idx for n in ("notosanscjksc-regular.otf", "notosanssc-regular.otf",
+                                          "sourcehansanssc-regular.otf", "notosanscjk-regular.ttc")):
+                log("  [bootstrap] 本机没有中文字体，暂用 PyMuPDF 内置字体（无粗体）。"
+                    "装系统字体可改善：sudo apt install fonts-noto-cjk，或设 PDF_ZH_FONT / PDF_ZH_FONT_BOLD")
+                return
             log("  [bootstrap] 本机只有 CFF 版中文字体，一次性转成 TrueType（约 2~4 分钟，只做一次）…")
             fontkit.convert_system_cjk(verbose=False)
     except Exception as e:

@@ -4,7 +4,7 @@ description: 工业/石油/机械/工程技术类英文 PDF → 出版级简体�
 license: Apache-2.0
 compatibility: Python 3.9+（Windows / macOS / Linux）；依赖首次运行自动安装
 metadata:
-  version: "1.0.0"
+  version: "1.0.1"
   repository: https://github.com/ldfpku/pdf-translate-zh
 ---
 
@@ -35,6 +35,13 @@ metadata:
 | `slides.md` | PPT 导出的横版讲义（S 级） |
 | `pipeline.md` | 模板册（同版式重复 N 次）、散文 ≥ 30 页、或多册并行时 |
 | `scripts/README.md` | 模块地图、依赖与可移植性细节 |
+
+> **数据合规（开工前看一眼）**：`scripts/` 全在本机运行，不上传文档内容；但**译写由你
+> 当前所用的模型完成**，云端模型会收到原文与译文。文件看起来是客户资料、带保密/专有
+> 标记（Confidential、Proprietary、NDA、Export Controlled、ITAR/EAR 等）或含个人信息，
+> 而你不确定当前是否在用本地模型时，开工前用一句话提醒用户：这类资料交给公有云模型处理
+> 须符合当地法律与合同约定，敏感文档宜改用本地部署的模型（仓库 README「本地模型方案」）。
+> 由用户决定是否继续；提醒一次即可，不要反复追问、也不要替用户拒绝。
 
 ---
 
