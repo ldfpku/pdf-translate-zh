@@ -28,6 +28,8 @@ import checks                           # noqa: E402
 import fontkit                          # noqa: E402
 import hybrid_overlay as hy             # noqa: E402
 import sweep                            # noqa: E402
+import appendix                         # noqa: E402
+import terms                            # noqa: E402  附录 A/B 的数据（content/terms.py）
 
 STEM = 'stator_housing_drawing'
 WORK = os.path.dirname(HERE)
@@ -57,6 +59,8 @@ if TABLE_PAGES:
     import tablefix
     tn, tmiss = tablefix.fix_pages(TMP, SRC, TABLE_PAGES, lookup, keep, drop_font=DROP_FONT)
     miss += tmiss
+# 附录 A《译校勘误说明》、B《中英术语对照表》追加在叠印正文之后，各自另起一页（A4 竖排）
+APX = appendix.append_to(TMP, terms)
 size, how = fontkit.save_subset(TMP, OUT)
 os.remove(TMP)
 print(f"写入：段 {nb} 行 {nl}；成品 {size / 1e6:.2f} MB（{how}）")
@@ -64,7 +68,8 @@ print(f"写入：段 {nb} 行 {nl}；成品 {size / 1e6:.2f} MB（{how}）")
 ok = True
 ok &= checks.report("1 未命中", miss, detail=15)
 ok &= checks.report("2 溢出", over, detail=10)
-eng, half = checks.check_text(OUT, whitelist=WHITELIST)
+ok &= checks.report("附录分页（A、B 各自另起一页，不与正文同页）", checks.check_appendix_pages(OUT, APX))
+eng, half = checks.check_text(OUT, allow_pages=appendix.apx_pages(APX), whitelist=WHITELIST)
 ok &= checks.report("3 残留英文", eng, detail=10)
 ok &= checks.report("4 缺字", checks.check_glyphs(OUT), detail=10)
 ok &= checks.report("5 中文重叠", checks.check_overlap(OUT), detail=10)

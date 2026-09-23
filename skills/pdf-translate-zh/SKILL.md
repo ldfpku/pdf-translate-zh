@@ -4,7 +4,7 @@ description: 工业/石油/机械/工程技术类英文 PDF → 出版级简体�
 license: Apache-2.0
 compatibility: Python 3.9+（Windows / macOS / Linux）；依赖首次运行自动安装
 metadata:
-  version: "1.0.1"
+  version: "1.0.2"
   repository: https://github.com/ldfpku/pdf-translate-zh
 ---
 
@@ -61,7 +61,7 @@ python $S/translate_pdf.py <file.pdf|目录>  # 定级 + 素材提取 + 生成�
 #   有插图时先目检 qa/contact_*.png（无插图看 render/p*.png），通读 data/prose_dump.txt、
 #   tables_readable.txt、route.json
 #   → 行业识别（§1 第 0 步）→ 按定级写内容层：R/H 级写 content.py + terms.py；
-#     P/S 级 `build.py --dump` 导出待译单元 → 写 <名>_dict.py（§2）
+#     P/S 级 `build.py --dump` 导出待译单元 → 写 <名>_dict.py + terms.py（§2）
 python <工作区>/content/build.py            # 出稿 + 全部闸门；任何 FAIL 返回非 0
 python $S/preview.py <译稿.pdf> <出图目录> --sheet   # 整册缩览拼贴，逐页目检
 ```
@@ -83,7 +83,7 @@ python $S/preview.py <译稿.pdf> <出图目录> --sheet   # 整册缩览拼贴�
 | 版式 | 正文 10.5pt 左右、1.5 倍行距；任何中文 ≥ 6.5pt；图题在下表题在上；文本类用 A4；页数由内容决定（约原版 70~85%）；品牌色与页眉页脚沿用 |
 | 插图 | 图内文字全类译出、逐幅漏译排查归零；原样保真不重绘；图幅权重跟随原版；尺寸代号与商标不译；< 150 dpi 位图先超分再回叠；件号气泡判读对账后统一重绘 |
 | 结构 | 表格 100% 译文重建（不以截图充当）；目录点引线对齐 + 跳转链接；列表层级还原 |
-| 可追溯 | 文末附录 A《译校勘误说明》+ 附录 B《中英术语对照表》 |
+| 可追溯 | 正文之后附录 A《译校勘误说明》、附录 B《中英术语对照表》，各自另起一页、不与正文同页（§10） |
 | 可复现 | 提取 / 词表 / 装配三层各自可重跑；工作区路径全相对，拷到别的机器可直接重跑 |
 
 ---
@@ -172,7 +172,8 @@ NOTE→`note`「说明」、CAUTION→`caution`「注意」、WARNING→`warning
 1. `python content/build.py --dump` → 待译单元写进 `content/pending.txt`（键 = `units_of()` 清理后的串）；
 2. 在 `content/<名>_dict.py` 的 `D` 里写译文（量大分批写 `<名>_b01.py`…，先加载者胜）；
    `""` = 保留原文；尺寸/件号/螺纹代号/标准号原样写进译文；
-3. `python content/build.py` → 出稿 + 闸门，未命中清零为止。合法保留的英文（公司名、人名）
+3. 在 `content/terms.py` 里写附录数据（与 R 级同格式：`GLOSSARY`、`JIA/YI/BING`）——叠印正文之后自动追加附录 A、B，各自另起一页（§10）；
+4. `python content/build.py` → 出稿 + 闸门，未命中清零为止。合法保留的英文（公司名、人名）
    写进 build.py 的 `WHITELIST`；明细表要真网格重建时填 `TABLE_PAGES`（先确认 `tablefix.regions()` 认对了表）。
 
 | 模块 | 作用 |
@@ -333,6 +334,17 @@ NOTE→`note`「说明」、CAUTION→`caution`「注意」、WARNING→`warning
 ---
 
 ## 10. 附录
+
+**与译文分隔（硬要求）**：每份译稿都附这两份附件，一律排在主体译文**之后**；附录 A 另起一页，
+附录 B 在 A 之后再另起一页，任何一页都不同时承载正文与附录（正文末页再空也不接排）。
+附件本身可占多页，页码单独编为「附录 A-1…」「附录 B-1…」。成品闸门「附录分页」
+（`checks.check_appendix_pages`）复核：A、B 齐全，标题是起始页版心里的第一段文字。
+- R 级：`driver` 两趟构建自动完成；`terms.py` 的 `GLOSSARY` 为空时附录 B 缺失 → 闸门 FAIL。
+- P / S 级：`content/terms.py` 与 R 级同格式，叠印构建里 `appendix.append_to(TMP, terms)`
+  在叠印正文后追加（A4 竖排，与图纸幅面无关）。
+- H 级：先按原顺序拼合全部正文页（P 页只能插在附录之前），R 部分若已带附录，拼合时插在
+  附录前；也可 R 部分不带附录，拼合完成后 `python $S/appendix.py <成品.pdf> content/terms.py`
+  统一追加并跑闸门。
 
 **附录 A《译校勘误说明》**：
 - **甲、原文缺陷与勘正**（正文已按勘正后译出）：原文位置 | 英文原文/问题 | 问题类型 | 勘正与译文 | 依据；

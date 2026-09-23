@@ -2,6 +2,20 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.0.2] - 2026-09-24
+
+### 变更
+- **附录与译文分隔**：每份译稿在主体译文之后附《译校勘误说明》（附录 A）与《中英术语对照表》（附录 B），两份附件各自另起一页，任何一页都不同时承载正文与附录；页码单独编为「附录 A-n」「附录 B-n」。
+- 叠印路线（P / S 级：图纸、表单、讲义）此前不生成附录，现与重排路线一致：`content/terms.py` 写附录数据，叠印正文后自动追加（A4 竖排）；H 级拼合后可用 `python scripts/appendix.py <成品.pdf> <terms.py>` 统一追加。
+- 新成品闸门「附录分页」（`checks.check_appendix_pages`）：A、B 齐全，各自另起一页，标题是起始页版心里的第一段文字；`GLOSSARY` 为空导致附录 B 缺失时判失败。
+
+### 新增
+- 代理端到端验证 `tests/agent_eval/`：留出集文档（无现成译文）、任务提示、独立评分（可复现、附录分页、术语抽查、防抄）；README 新增「已验证的模型」：Gemini 3.8 Flash（Medium）+ Antigravity CLI 通过。
+- 行业惯例补充：API 螺纹类型译名（REG 正规扣、IF 内平扣、FH 贯眼扣、NC 数字型扣）、工程图标题栏译法、商号整体保留原文。
+- R 级骨架把 `terms.ERRATA_INTRO`（行业判定与依据）传进附录 A 引言（此前需手工改 build.py）。
+- 安装脚本支持 Google Antigravity（`--agent antigravity` → `~/.gemini/config/skills`）。
+- 冒烟测试独立复核 R 级与 P 级成品的附录分页；图纸示例补上 `terms.py`。
+
 ## [1.0.1] - 2026-09-24
 
 ### 新增

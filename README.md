@@ -1,7 +1,7 @@
 # pdf-translate-zh
 
 **工业技术 PDF → 出版级简体中文 PDF** 的 Agent Skill。
-适用于 Claude Code、Claude.ai / Claude 桌面版，以及 Codex、Cursor、GitHub Copilot、Gemini CLI、OpenCode、Windsurf 等支持 [Agent Skills](https://agentskills.io) 标准的 AI 工具。
+适用于 Claude Code、Claude.ai / Claude 桌面版，以及 Codex、Cursor、GitHub Copilot、Gemini CLI、Google Antigravity、OpenCode、Windsurf 等支持 [Agent Skills](https://agentskills.io) 标准的 AI 工具。
 
 [![CI](https://github.com/ldfpku/pdf-translate-zh/actions/workflows/ci.yml/badge.svg)](https://github.com/ldfpku/pdf-translate-zh/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
@@ -27,7 +27,7 @@
 - **自带排版引擎**：中文断行禁则、字号取齐、表格真网格重建、图内文字（矢量 / 描边 / 位图烧死）替换、件号气泡重绘、低清插图超分。
 - **目录与导航**：目录页码回填、跳转链接、PDF 书签。
 - **机器闸门**：内容对账、残留英文、缺字、越界、叠字等检查，全部通过才出稿。
-- **可追溯**：每份译稿附《译校勘误说明》与《中英术语对照表》。
+- **可追溯**：每份译稿在正文之后附《译校勘误说明》（附录 A）与《中英术语对照表》（附录 B），两份附件各自另起一页、不与译文同页。
 - **零人工配置**：首次使用自动安装 Python 依赖（装进技能私有缓存，不碰系统 Python，无需管理员权限）、自动找/配中文字体；插图超分后端按需安装。
 
 ## 安装
@@ -78,7 +78,7 @@ irm https://raw.githubusercontent.com/ldfpku/pdf-translate-zh/main/install.ps1 |
 | macOS / Linux | Windows | 作用 |
 |---|---|---|
 | `sh install.sh` | `.\install.ps1` | 自动检测本机装过的 AI 工具，全部装上（都没有则装给 Claude） |
-| `--agent claude` | `-Agent claude` | 只装给某个工具：`claude codex cursor copilot gemini opencode windsurf agents all` |
+| `--agent claude` | `-Agent claude` | 只装给某个工具：`claude codex cursor copilot gemini antigravity opencode windsurf agents all` |
 | `--project .` | `-Project .` | 装到当前项目（`.claude/skills` 与 `.agents/skills`） |
 | `--link` | `-Link` | 用符号链接 / 目录联接，改仓库立即生效（开发用） |
 | `--bootstrap` | `-Bootstrap` | 装完顺手配好 Python 依赖与字体（不加也行，首次使用会自动配） |
@@ -104,6 +104,8 @@ irm https://raw.githubusercontent.com/ldfpku/pdf-translate-zh/main/install.ps1 |
 | Cursor | `~/.cursor/skills/` | `.agents/skills/` 或 `.cursor/skills/` |
 | GitHub Copilot | `~/.copilot/skills/` | `.github/skills/` 或 `.agents/skills/` |
 | Gemini CLI | `~/.gemini/skills/` | `.gemini/skills/` 或 `.agents/skills/` |
+| Google Antigravity（IDE / 2.0） | `~/.gemini/config/skills/` | `.agents/skills/` |
+| Antigravity CLI（`agy`） | `~/.gemini/antigravity-cli/skills/` | `.agents/skills/` |
 | OpenCode | `~/.config/opencode/skills/` | `.opencode/skills/` 或 `.agents/skills/` |
 | Windsurf | `~/.codeium/windsurf/skills/` | `.windsurf/skills/` |
 | 通用 | `~/.agents/skills/` | `.agents/skills/` |
@@ -209,13 +211,25 @@ python tests/smoke_test.py        # Windows：py tests\smoke_test.py
 
 它会：引擎自检 → 生成虚构样例 PDF → 定级（R/R/P）→ R 级示例出稿并过全部闸门 → P 级图纸叠印并过六道关。首次运行含依赖安装，约 1–3 分钟；之后约 20 秒。全部 PASS 即环境可用。
 
+## 已验证的模型
+
+除三平台 CI（引擎 + 示例内容层）外，下列「模型 + AI 工具」组合用留出集做过端到端验证：代理只拿到英文 PDF 和一句需求，自己走完定级、翻译、出稿、闸门，再由独立评分脚本复核（方法见 [`tests/agent_eval/`](tests/agent_eval/)）。
+
+| 模型 | AI 工具 | 平台 | 日期 | 技能版本 | 结果 |
+|---|---|---|---|---|---|
+| Gemini 3.8 Flash（Medium）`gemini-3.8-flash-medium` | Antigravity CLI `agy` 1.2.9（无人值守 `-p` 模式） | Windows 11 · Python 3.14 | 2026-09-24 | 1.0.2 | ✅ 通过：R 级手册 + P 级图纸各 1 份，约 7 分钟；闸门全过、重跑可复现、附录 A/B 各自另起一页、无抄袭 |
+
+人工复核该次译稿发现的问题（已据此补进技能的行业惯例，见 `references/industry.md`）：API 螺纹类型死译（IF 译「内部平整」、FH 译「全孔」，应为内平扣、贯眼扣）；标题栏 APPROVED 译「审核」（应为「批准」）、SHEET 1 OF 1 译「第 1/1 页」（应为「共 1 张 第 1 张」）；公司名半译；一条勘误说明与正文不一致。**机器闸门拦不住术语与措辞层面的问题，任何模型的译稿都须人工审校。**
+
+欢迎按 `tests/agent_eval/` 的流程提交其他模型的验证结果。
+
 ## 仓库结构
 
 ```text
 .claude-plugin/          Claude Code 插件与市场清单
 skills/pdf-translate-zh/ 技能本体（SKILL.md、references/、scripts/、setup.*）
 examples/                完整内容层示例（虚构文档）
-tests/                   样例 PDF 生成与端到端冒烟测试
+tests/                   样例 PDF 生成、引擎冒烟测试、代理端到端验证（agent_eval/）
 tools/package.py         打包 dist/pdf-translate-zh.zip
 install.sh / install.ps1 多工具安装脚本
 ```

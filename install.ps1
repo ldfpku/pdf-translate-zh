@@ -4,7 +4,7 @@
 #
 # Usage (inside a clone of the repo):
 #   powershell -ExecutionPolicy Bypass -File install.ps1                 auto-detect installed AI tools, install to all of them
-#   powershell -ExecutionPolicy Bypass -File install.ps1 -Agent claude   one tool: claude codex cursor copilot gemini opencode windsurf agents
+#   powershell -ExecutionPolicy Bypass -File install.ps1 -Agent claude   one tool: claude codex cursor copilot gemini antigravity opencode windsurf agents
 #   powershell -ExecutionPolicy Bypass -File install.ps1 -Agent all
 #   powershell -ExecutionPolicy Bypass -File install.ps1 -Project .      install into a project (.claude\skills and .agents\skills)
 #   powershell -ExecutionPolicy Bypass -File install.ps1 -Link           directory junction (edits in the repo take effect immediately)
@@ -52,6 +52,7 @@ $Dirs = [ordered]@{
     cursor   = @((Join-Path $HomeDir ".cursor"), (Join-Path $HomeDir ".cursor\skills"))
     copilot  = @((Join-Path $HomeDir ".copilot"), (Join-Path $HomeDir ".copilot\skills"))
     gemini   = @((Join-Path $HomeDir ".gemini"), (Join-Path $HomeDir ".gemini\skills"))
+    antigravity = @((Join-Path $HomeDir ".gemini\config"), (Join-Path $HomeDir ".gemini\config\skills"))
     opencode = @((Join-Path $HomeDir ".config\opencode"), (Join-Path $HomeDir ".config\opencode\skills"))
     windsurf = @((Join-Path $HomeDir ".codeium\windsurf"), (Join-Path $HomeDir ".codeium\windsurf\skills"))
     agents   = @((Join-Path $HomeDir ".agents"), (Join-Path $HomeDir ".agents\skills"))

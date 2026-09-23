@@ -10,7 +10,7 @@
       "name": "pdf-translate-zh",
       "source": "./",
       "description": "Publication-grade English → Simplified Chinese translation of industrial engineering PDFs. 工业/石油/机械/工程技术 PDF 出版级中文翻译：定级、重排或叠印、图内文字、表格重建、目录链接、机器闸门、勘误与术语附录。",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "author": { "name": "ldfpku" },
       "homepage": "https://github.com/ldfpku/pdf-translate-zh",
       "repository": "https://github.com/ldfpku/pdf-translate-zh",

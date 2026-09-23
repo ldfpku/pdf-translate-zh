@@ -166,3 +166,89 @@ def no_widow(t, min_tail=6):
     t.__class__ = type("NoWidow" + t.__class__.__name__,
                        (NoWidowRows, t.__class__), {"_MIN_TAIL": min_tail})
     return t
+
+
+# ---------------------------------------------------------------- 独立附录与追加
+# 附录必须与译文分隔：正文排完之后，附录 A 另起一页，附录 B 在 A 之后再另起一页，
+# 任何一页都不同时承载正文与附录。R 级由 driver 的两趟构建保证；P / S 级（叠印出稿）
+# 与 H 级拼合后的成品用下面的 append_to() 在末尾追加，由 checks.check_appendix_pages 把关。
+def _terms_get(terms, key, default=()):
+    if terms is None:
+        return default
+    if isinstance(terms, dict):
+        return terms.get(key, default)
+    return getattr(terms, key, default)
+
+
+def build_pdf(path, terms=None, geom=None, foot=("", "", ""), S=None,
+              intro=None, note=None):
+    """把附录 A、B 单独排成一个 PDF（A 起于第 1 页，B 另起一页）。
+
+    terms：内容层的 terms 模块或同名键的 dict（GLOSSARY / JIA / YI / BING）。
+    返回 [(tag, 起始页, 结束页)]，页号为本文件内 1 基页号。
+    """
+    import builder as _B
+    geom = geom or _B.A4
+    S = S or styles()
+    gl = _terms_get(terms, "GLOSSARY", None) or {}
+    jia, yi, bing = (_terms_get(terms, k, ()) for k in ("JIA", "YI", "BING"))
+    intro = intro or _terms_get(terms, "ERRATA_INTRO", None)
+    note = note or _terms_get(terms, "GLOSS_NOTE", None)
+
+    def apx():
+        out = [("A", errata(jia, yi, bing, S, geom.fw, intro))]
+        if gl:
+            out.append(("B", glossary(gl, S, geom.fw, note=note)))
+        return out
+
+    n, _labels, spans = _B.build_2pass(path, [], apx, geom, None, _B.Footer(*foot),
+                                       S, verbose=False)
+    return spans
+
+
+def append_to(pdf, terms=None, geom=None, foot=("", "", ""), S=None, **kw):
+    """在已出稿的 PDF 末尾追加附录 A、B（各自另起一页），原地改写 pdf。
+
+    返回 [(tag, 起始页, 结束页)]，页号为追加后成品内的 1 基页号，
+    直接交给 checks.check_appendix_pages() 与 check_text(allow_pages=…)。
+    """
+    try:
+        import pymupdf as fitz
+    except ImportError:
+        import fitz
+    import os
+    tmp_apx = pdf + ".apx.pdf"
+    tmp_out = pdf + ".with-apx.pdf"
+    spans = build_pdf(tmp_apx, terms, geom=geom, foot=foot, S=S, **kw)
+    with fitz.open(pdf) as doc, fitz.open(tmp_apx) as apx:
+        base = doc.page_count
+        doc.insert_pdf(apx)
+        doc.save(tmp_out, garbage=3, deflate=True)
+    os.replace(tmp_out, pdf)
+    os.remove(tmp_apx)
+    return [(t, p0 + base, p1 + base) for t, p0, p1 in spans]
+
+
+def apx_pages(spans):
+    """附录所占物理页集合（1 基）：check_text 等闸门据此豁免附录页里的英文。"""
+    out = set()
+    for _t, p0, p1 in spans:
+        out |= set(range(p0, p1 + 1))
+    return out
+
+
+if __name__ == "__main__":
+    # H 级拼合完成后统一追加附录：python appendix.py <成品.pdf> <content/terms.py>
+    import importlib.util
+    import sys
+    if len(sys.argv) != 3:
+        sys.exit("用法：python appendix.py <成品.pdf> <terms.py>")
+    spec = importlib.util.spec_from_file_location("terms", sys.argv[2])
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    sp = append_to(sys.argv[1], mod)
+    import checks
+    ok = checks.report("附录分页（A、B 各自另起一页，不与正文同页）",
+                       checks.check_appendix_pages(sys.argv[1], sp))
+    print("  附录：" + "  ".join("%s=%d~%d" % s for s in sp))
+    sys.exit(0 if ok else 1)

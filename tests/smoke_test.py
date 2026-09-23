@@ -46,6 +46,43 @@ def report(name, log, tail=3000):
     _gh("error", "smoke: " + name, (key or log.splitlines())[-25:])
 
 
+def apx_step(tag, pdf):
+    """独立复核：附录 A、B 在译文之后，各自另起一页，任何一页都不同时有正文与附录。"""
+    try:
+        import pymupdf as fitz
+    except ImportError:
+        import fitz
+    from appendix import A_TITLE, B_TITLE
+    norm = lambda t: "".join(t.split())
+    if not os.path.exists(pdf):
+        step("%s 附录分页" % tag, False, "成品不存在")
+        return
+    with fitz.open(pdf) as d:
+        first = {}
+        for i, pg in enumerate(d):
+            txt = norm(pg.get_text())
+            for k, t in (("A", A_TITLE), ("B", B_TITLE)):
+                if norm(t) in txt and k not in first:
+                    first[k] = i
+        ok = "A" in first and "B" in first and first["A"] > 0 and first["B"] > first["A"]
+        detail = "A 起于第 %s 页，B 起于第 %s 页，共 %d 页" % (
+            first.get("A", -1) + 1, first.get("B", -1) + 1, d.page_count)
+        if ok:
+            # 附录 A 首页上，标题之上不得有正文段落（页眉除外：与前一页同位置重复的文字）
+            for k in ("A", "B"):
+                pg, prev = d[first[k]], d[first[k] - 1]
+                run = {(norm(b[4]), round(b[1])) for b in prev.get_text("blocks")}
+                blocks = sorted(pg.get_text("blocks"), key=lambda b: b[1])
+                t = norm(A_TITLE if k == "A" else B_TITLE)
+                hit = next(b for b in blocks if t in norm(b[4]))
+                above = [b for b in blocks if b[3] <= hit[1] + 0.5 and norm(b[4])
+                         and (norm(b[4]), round(b[1])) not in run]
+                if above:
+                    ok = False
+                    detail += "；附录 %s 首页标题上方有 %d 段正文" % (k, len(above))
+    step("%s 附录分页（A、B 各自另起一页）" % tag, ok, detail)
+
+
 def run(args, cwd=None):
     t = time.time()
     r = subprocess.run([sys.executable, *args], cwd=cwd, env=ENV, capture_output=True,
@@ -104,17 +141,19 @@ def main():
     step("R 级出稿 + 全部闸门", rc == 0 and "PASS" in log, "%.0fs" % dt)
     if rc:
         report("R build", log)
+    apx_step("R 级", os.path.join(OUT, "translated", "mud_motor_manual_中文_v01.pdf"))
 
     # ---- P 级：图纸叠印（examples/stator-drawing）
     rc, log, dt = run([os.path.join(SCRIPTS, "translate_pdf.py"), "stator_housing_drawing.pdf"], cwd=OUT)
     work = os.path.join(OUT, "translated", "stator_housing_drawing")
     step("P 级骨架 translate_pdf.py", rc == 0, "%.0fs" % dt)
-    for f in ("build.py", "stator_housing_drawing_dict.py"):
+    for f in ("build.py", "stator_housing_drawing_dict.py", "terms.py"):
         shutil.copy(os.path.join(ROOT, "examples", "stator-drawing", f), os.path.join(work, "content", f))
     rc, log, dt = run([os.path.join(work, "content", "build.py")])
     step("P 级叠印 + 六道关", rc == 0 and "PASS" in log, "%.0fs" % dt)
     if rc:
         report("P build", log)
+    apx_step("P 级", os.path.join(OUT, "translated", "stator_housing_drawing_中文_v01.pdf"))
 
     print("\n结论：" + ("全部通过" if not _fails else "失败 %d 项：%s" % (len(_fails), "、".join(_fails))))
     print("产物：" + OUT)

@@ -837,3 +837,52 @@ def check_thin_pages(out, min_lines=3, skip_pages=()):
                 bad.append((i + 1, len(body),
                             "".join(s["text"] for s in body[0]["spans"])[:40]))
     return bad
+
+
+def check_appendix_pages(pdf, spans, need=("A", "B")):
+    """附录与译文分隔：附录 A、B 齐全，各自另起一页，标题落在起始页顶部。
+
+    spans = [(tag, 起始页, 结束页)]（1 基），由 build_2pass / appendix.append_to 返回。
+    判据：
+      · A、B 都在（每份译稿必须附两份附件）；
+      · A 起于正文之后的新页，B 紧接 A 的末页之后另起一页（页号衔接、不重叠）；
+      · 起始页上附录标题是**版心里的第一段文字** —— 标题上方还有正文，
+        就是正文与附录挤在了同一页。
+    """
+    from appendix import A_TITLE, B_TITLE
+    titles = {"A": A_TITLE, "B": B_TITLE}
+    norm = lambda t: re.sub(r"\s+", "", t or "")
+    bad = []
+    tags = [t for t, _, _ in spans]
+    for t in need:
+        if t not in tags:
+            bad.append((t, "缺失（terms.py 的 GLOSSARY / JIA / YI / BING 未填？）"))
+    with fitz.open(pdf) as d:
+        prev = None
+        for tag, p0, p1 in spans:
+            if not (1 <= p0 <= p1 <= d.page_count):
+                bad.append((tag, f"页号越界 {p0}~{p1}（共 {d.page_count} 页）"))
+                continue
+            if prev is not None and p0 != prev + 1:
+                bad.append((tag, f"起始页 {p0} 未紧接上一附录末页 {prev}"))
+            prev = p1
+            page = d[p0 - 1]
+            h = page.rect.height
+            blocks = sorted((b for b in page.get_text("blocks") if b[4].strip()),
+                            key=lambda b: (b[1], b[0]))
+            want = norm(titles.get(tag))
+            hit = next((b for b in blocks if want and want in norm(b[4])), None)
+            if hit is None:
+                bad.append((tag, f"第 {p0} 页找不到标题「{titles.get(tag)}」"))
+                continue
+            # 页眉（抬头/题名/页眉块）不算正文：相邻页同一位置重复出现的文字即页眉
+            run = set()
+            for q in (p0 - 2, p0):
+                if 0 <= q < d.page_count:
+                    run |= {(norm(b[4]), round(b[1])) for b in d[q].get_text("blocks")}
+            above = [b for b in blocks if b[3] <= hit[1] + 0.5
+                     and (norm(b[4]), round(b[1])) not in run]
+            if above or hit[1] > h * 0.45:
+                bad.append((tag, f"第 {p0} 页标题上方还有 {len(above)} 段文字"
+                                 f"（正文与附录同页？）"))
+    return bad

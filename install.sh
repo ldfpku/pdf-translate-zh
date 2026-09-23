@@ -3,7 +3,7 @@
 #
 # 用法（在克隆下来的仓库里）：
 #   sh install.sh                      # 自动检测本机已装的 AI 工具，全部装上
-#   sh install.sh --agent claude       # 只装给某一个：claude codex cursor copilot gemini opencode windsurf agents
+#   sh install.sh --agent claude       # 只装给某一个：claude codex cursor copilot gemini antigravity opencode windsurf agents
 #   sh install.sh --agent all          # 全部目录都装
 #   sh install.sh --project .          # 装到当前项目（.claude/skills 与 .agents/skills）
 #   sh install.sh --link               # 用符号链接（开发时改仓库即生效）
@@ -55,6 +55,7 @@ dir_of() {   # 全局安装目录
     cursor)   echo "$HOME/.cursor/skills" ;;
     copilot)  echo "$HOME/.copilot/skills" ;;
     gemini)   echo "$HOME/.gemini/skills" ;;
+    antigravity) echo "$HOME/.gemini/config/skills" ;;
     opencode) echo "$HOME/.config/opencode/skills" ;;
     windsurf) echo "$HOME/.codeium/windsurf/skills" ;;
     agents)   echo "$HOME/.agents/skills" ;;
@@ -65,11 +66,12 @@ home_of() {  # 用来判断该工具是否装过
   case "$1" in
     claude) echo "$HOME/.claude" ;; codex) echo "${CODEX_HOME:-$HOME/.codex}" ;;
     cursor) echo "$HOME/.cursor" ;; copilot) echo "$HOME/.copilot" ;;
-    gemini) echo "$HOME/.gemini" ;; opencode) echo "$HOME/.config/opencode" ;;
+    gemini) echo "$HOME/.gemini" ;; antigravity) echo "$HOME/.gemini/config" ;;
+    opencode) echo "$HOME/.config/opencode" ;;
     windsurf) echo "$HOME/.codeium/windsurf" ;; agents) echo "$HOME/.agents" ;;
   esac
 }
-ALL="claude codex cursor copilot gemini opencode windsurf agents"
+ALL="claude codex cursor copilot gemini antigravity opencode windsurf agents"
 
 TARGETS=""
 if [ -n "$PROJECT" ]; then

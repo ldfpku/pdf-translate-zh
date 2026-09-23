@@ -38,6 +38,8 @@
 - string → 钻柱｜drillstring/working string
 - make up → 上扣｜makeup torque=上扣扭矩；breakout → 卸扣（主动）；back-off → 卸扣松脱（井下意外）
 - box / pin → 母扣/公扣｜bit box=钻头母扣（盒是死译）
+- 旋转台肩螺纹类型（API Spec 7-2）→ **代号照录、类型用行业名**：REG=正规扣、IF=内平扣、FH=贯眼扣、NC=数字型扣
+  （「4-1/2 IF」可写「4-1/2 IF（内平扣）」；「内部平整」「全孔」是字面死译，实测模型会这样错）
 - dope → 螺纹脂（动词=涂螺纹脂）
 - stall → 憋停｜surface stalling=地面憋停
 - WOB → 钻压；ROP → 机械钻速；flow rate → 排量（钻井液语境）
@@ -65,6 +67,7 @@
 - male/female → 公/母（轴承）；螺纹端专名 pin/box=公扣/母扣
 - inner/outer、upper/lower → 内/外、上/下 前置直译
 - `-ing` 作业名 → 双字动宾式：milling 磨铣、coring 取心、sliding 滑动钻进
+- 工程图标题栏按国标习惯：DRAWN=制图、CHECKED=校对、APPROVED=批准（≠审核）、SCALE=比例、REV=版次、SHEET 1 OF 2=「共 2 张 第 1 张」（不是「第 1/2 页」）；**公司名/商号整体保留原文**，不做半译（「BOREALIS 井下系统」这类半中半英是错的），并写进 WHITELIST
 - 商品名/型号/标准号/图号**保留原文**：Loctite、SS100、Super-Jar AP、Safe-Lok；
   「零件名, 型号」复合串零件名译出、型号保留
 - **一物一名 + 首现附英文**：全库共用 CORE 词表基座、各册只增不改；

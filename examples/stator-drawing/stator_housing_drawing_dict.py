@@ -33,7 +33,7 @@ D = {
     "REV: C": "版次：C",
     "SCALE: 1:4": "比例：1:4",
     "SHEET 1 OF 1": "共 1 张  第 1 张",
-    "DRAWN: J. SMITH CHECKED: R. LEE": "制图：J. SMITH　审核：R. LEE",
+    "DRAWN: J. SMITH CHECKED: R. LEE": "制图：J. SMITH　校对：R. LEE",
 }
 
 

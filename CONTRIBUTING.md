@@ -17,6 +17,7 @@ python tests/smoke_test.py                  # Windows: py tests\smoke_test.py
 
 - `python tests/smoke_test.py` 全部 PASS。
 - `python tools/package.py` 能打包（顺带校验 SKILL.md frontmatter）。
+- 改了流程或规则、或想登记新模型：按 `tests/agent_eval/README.md` 跑一次代理端到端验证，把结果补进 README「已验证的模型」。
 - 新规则写进对应的 `references/*.md`，并在 `SKILL.md` 的分册表里能找到入口；`SKILL.md` 正文保持精简。
 - 发版时同步三处版本号：`skills/pdf-translate-zh/SKILL.md`（`metadata.version`）、`.claude-plugin/plugin.json`、`.claude-plugin/marketplace.json`，并更新 `CHANGELOG.md`。打 `vX.Y.Z` 标签后 Release 工作流会自动打包上传。
 

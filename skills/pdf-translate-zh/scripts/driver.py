@@ -190,10 +190,10 @@ def run(job, quiet=False):
     # 传**工厂**而非现成 flowable：两趟构建会排两遍，ReportLab 的 Table 有状态，
     # 复用同一实例第二趟会抛 LayoutError（cell too large on page …）。
     def apx():
-        out = []
-        if job.jia or job.yi or job.bing or job.glossary:
-            out.append(("A", errata(job.jia, job.yi, job.bing, S, g.fw,
-                                    job.errata_intro)))
+        # 每份译稿都附两份附件：A 恒有（甲乙丙为空时各节写明「无」），B 需 GLOSSARY 非空。
+        # 二者排在正文之后、各自另起一页（build() 在附录前、附录间都插 PageBreak），
+        # 由成品闸门「附录分页」复核。
+        out = [("A", errata(job.jia, job.yi, job.bing, S, g.fw, job.errata_intro))]
         if job.glossary:
             out.append(("B", glossary(job.glossary, S, g.fw,
                                       note=job.gloss_note)))
@@ -228,6 +228,8 @@ def run(job, quiet=False):
         ok &= seq
     else:
         print("  note 本件原版不设自有页码，跳过页码序列自检")
+    ok &= checks.report("附录分页（A、B 各自另起一页，不与正文同页）",
+                        checks.check_appendix_pages(job.out, spans))
     # 附录页允许出现英文：勘误表引用原文、术语对照表英文列
     allow = set()
     for _, p0, p1 in spans:
