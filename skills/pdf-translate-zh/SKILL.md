@@ -4,7 +4,7 @@ description: 工业/石油/机械/工程技术类英文 PDF → 出版级简体�
 license: Apache-2.0
 compatibility: Python 3.9+（Windows / macOS / Linux）；依赖首次运行自动安装
 metadata:
-  version: "1.1.1"
+  version: "1.1.2"
   repository: https://github.com/ldfpku/pdf-translate-zh
 ---
 
