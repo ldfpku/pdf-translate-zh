@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 168" width="880" height="168" role="img" aria-label="工作流程：放入 PDF、识别行业、判断版面、翻译排版、自动检查、输出中文 PDF 与附录">
+<style>
+text{font-family:"PingFang SC","Microsoft YaHei","Noto Sans CJK SC","Source Han Sans SC","Hiragino Sans GB",sans-serif}
+.panel{fill:#fff;stroke:#d1d9e0}
+.card{fill:#f6f8fa;stroke:#d1d9e0}
+.t{fill:#1f2328}.m{fill:#59636e}
+.acc{fill:#0969da}.accbg{fill:#ddf4ff;stroke:#54aeff}
+.fix{fill:#1a7f37}.fixbg{fill:#dafbe1;stroke:#4ac26b}
+.ln{stroke:#8c959f;fill:none}.ah{fill:#8c959f}
+@media (prefers-color-scheme:dark){
+.panel{fill:#0d1117;stroke:#3d444d}
+.card{fill:#151b23;stroke:#3d444d}
+.t{fill:#e6edf3}.m{fill:#9198a1}
+.acc{fill:#4493f8}.accbg{fill:#0c2d6b;stroke:#1f6feb}
+.fix{fill:#3fb950}.fixbg{fill:#0f2d1a;stroke:#238636}
+.ln{stroke:#656c76}.ah{fill:#656c76}
+}
+</style>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="ah"/></marker></defs>
+<rect class="panel" x="0.5" y="0.5" width="879" height="167" rx="12"/>
+
+<g transform="translate(20 20)">
+<rect class="card" width="120" height="128" rx="10"/>
+<circle class="accbg" cx="60" cy="30" r="15"/><text class="acc" x="60" y="35" text-anchor="middle" font-size="14" font-weight="700">1</text>
+<text class="t" x="60" y="72" text-anchor="middle" font-size="15" font-weight="700">放入 PDF</text>
+<text class="m" x="60" y="96" text-anchor="middle" font-size="12">手册、规范、</text>
+<text class="m" x="60" y="114" text-anchor="middle" font-size="12">图纸、表单</text></g>
+
+<g transform="translate(164 20)">
+<rect class="card" width="120" height="128" rx="10"/>
+<circle class="accbg" cx="60" cy="30" r="15"/><text class="acc" x="60" y="35" text-anchor="middle" font-size="14" font-weight="700">2</text>
+<text class="t" x="60" y="72" text-anchor="middle" font-size="15" font-weight="700">识别行业</text>
+<text class="m" x="60" y="96" text-anchor="middle" font-size="12">锁定标准号</text>
+<text class="m" x="60" y="114" text-anchor="middle" font-size="12">与专业术语</text></g>
+
+<g transform="translate(308 20)">
+<rect class="card" width="120" height="128" rx="10"/>
+<circle class="accbg" cx="60" cy="30" r="15"/><text class="acc" x="60" y="35" text-anchor="middle" font-size="14" font-weight="700">3</text>
+<text class="t" x="60" y="72" text-anchor="middle" font-size="15" font-weight="700">判断版面</text>
+<text class="m" x="60" y="96" text-anchor="middle" font-size="12">重新排版</text>
+<text class="m" x="60" y="114" text-anchor="middle" font-size="12">还是原位换字</text></g>
+
+<g transform="translate(452 20)">
+<rect class="card" width="120" height="128" rx="10"/>
+<circle class="accbg" cx="60" cy="30" r="15"/><text class="acc" x="60" y="35" text-anchor="middle" font-size="14" font-weight="700">4</text>
+<text class="t" x="60" y="72" text-anchor="middle" font-size="15" font-weight="700">翻译排版</text>
+<text class="m" x="60" y="96" text-anchor="middle" font-size="12">正文、表格、</text>
+<text class="m" x="60" y="114" text-anchor="middle" font-size="12">图内文字</text></g>
+
+<g transform="translate(596 20)">
+<rect class="card" width="120" height="128" rx="10"/>
+<circle class="accbg" cx="60" cy="30" r="15"/><text class="acc" x="60" y="35" text-anchor="middle" font-size="14" font-weight="700">5</text>
+<text class="t" x="60" y="72" text-anchor="middle" font-size="15" font-weight="700">自动检查</text>
+<text class="m" x="60" y="96" text-anchor="middle" font-size="12">不过关</text>
+<text class="m" x="60" y="114" text-anchor="middle" font-size="12">不出稿</text></g>
+
+<g transform="translate(740 20)">
+<rect class="fixbg" width="120" height="128" rx="10"/>
+<circle class="fixbg" cx="60" cy="30" r="15"/><text class="fix" x="60" y="35" text-anchor="middle" font-size="14" font-weight="700">✓</text>
+<text class="fix" x="60" y="72" text-anchor="middle" font-size="15" font-weight="700">中文 PDF</text>
+<text class="t" x="60" y="96" text-anchor="middle" font-size="12">附勘误说明</text>
+<text class="t" x="60" y="114" text-anchor="middle" font-size="12">与术语对照表</text></g>
+
+<g class="ln" stroke-width="2">
+<line x1="143" y1="84" x2="160" y2="84" marker-end="url(#a)"/>
+<line x1="287" y1="84" x2="304" y2="84" marker-end="url(#a)"/>
+<line x1="431" y1="84" x2="448" y2="84" marker-end="url(#a)"/>
+<line x1="575" y1="84" x2="592" y2="84" marker-end="url(#a)"/>
+<line x1="719" y1="84" x2="736" y2="84" marker-end="url(#a)"/>
+</g>
+</svg>

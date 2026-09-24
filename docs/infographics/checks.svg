@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 236" width="880" height="236" role="img" aria-label="出稿前自动检查六项：数字型号对账、残留英文、缺字乱码、出界与叠字、目录与书签、附录另起页；任何一项不过关，不出稿">
+<style>
+text{font-family:"PingFang SC","Microsoft YaHei","Noto Sans CJK SC","Source Han Sans SC","Hiragino Sans GB",sans-serif}
+.panel{fill:#fff;stroke:#d1d9e0}
+.card{fill:#f6f8fa;stroke:#d1d9e0}
+.t{fill:#1f2328}.m{fill:#59636e}
+.fix{stroke:#1a7f37;fill:none}.fixbg{fill:#dafbe1;stroke:#4ac26b}
+.pain{fill:#cf222e}
+@media (prefers-color-scheme:dark){
+.panel{fill:#0d1117;stroke:#3d444d}
+.card{fill:#151b23;stroke:#3d444d}
+.t{fill:#e6edf3}.m{fill:#9198a1}
+.fix{stroke:#3fb950}.fixbg{fill:#0f2d1a;stroke:#238636}
+.pain{fill:#ff7b72}
+}
+</style>
+<defs>
+<g id="c">
+<rect class="card" width="272" height="76" rx="10"/>
+<circle class="fixbg" cx="36" cy="38" r="16"/>
+<path class="fix" d="M28 38.5l5.5 5.5L44.5 32" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+</defs>
+<rect class="panel" x="0.5" y="0.5" width="879" height="235" rx="12"/>
+
+<g transform="translate(20 20)"><use href="#c"/>
+<text class="t" x="64" y="33" font-size="15" font-weight="700">数字、型号对账</text>
+<text class="m" x="64" y="55" font-size="12">原文的数字、型号一个不少</text></g>
+
+<g transform="translate(304 20)"><use href="#c"/>
+<text class="t" x="64" y="33" font-size="15" font-weight="700">残留英文</text>
+<text class="m" x="64" y="55" font-size="12">该翻的英文全部清零</text></g>
+
+<g transform="translate(588 20)"><use href="#c"/>
+<text class="t" x="64" y="33" font-size="15" font-weight="700">缺字乱码</text>
+<text class="m" x="64" y="55" font-size="12">不出现方框，化学式下标正常</text></g>
+
+<g transform="translate(20 108)"><use href="#c"/>
+<text class="t" x="64" y="33" font-size="15" font-weight="700">出界与叠字</text>
+<text class="m" x="64" y="55" font-size="12">文字不越出版面、不互相重叠</text></g>
+
+<g transform="translate(304 108)"><use href="#c"/>
+<text class="t" x="64" y="33" font-size="15" font-weight="700">目录与书签</text>
+<text class="m" x="64" y="55" font-size="12">条目、跳转、书签三者一致</text></g>
+
+<g transform="translate(588 108)"><use href="#c"/>
+<text class="t" x="64" y="33" font-size="15" font-weight="700">附录另起页</text>
+<text class="m" x="64" y="55" font-size="12">勘误说明、术语表各自成页</text></g>
+
+<text class="pain" x="440" y="214" text-anchor="middle" font-size="14" font-weight="700">任何一项不过关，不出稿</text>
+</svg>

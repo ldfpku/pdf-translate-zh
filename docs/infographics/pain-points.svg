@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 392" width="880" height="392" role="img" aria-label="八个痛点与解决办法：中文塞不下→按中文重新排版；行话直译→先认行业再翻译；插图模糊→插图放大 4 倍；图里的英文没翻→图内文字也翻；图纸线条被抹坏→只换字不动线；表格错乱→按表格线重建；目录对不上→页码自动更新；数字型号出错→逐个自动核对">
+<style>
+text{font-family:"PingFang SC","Microsoft YaHei","Noto Sans CJK SC","Source Han Sans SC","Hiragino Sans GB",sans-serif}
+.panel{fill:#fff;stroke:#d1d9e0}
+.card{fill:#f6f8fa;stroke:#d1d9e0}
+.t{fill:#1f2328}.m{fill:#59636e}
+.pain{fill:#cf222e}
+.fix{fill:#1a7f37}.fixbg{fill:#dafbe1;stroke:#4ac26b}
+.ln{stroke:#8c959f;fill:none}.ah{fill:#8c959f}
+@media (prefers-color-scheme:dark){
+.panel{fill:#0d1117;stroke:#3d444d}
+.card{fill:#151b23;stroke:#3d444d}
+.t{fill:#e6edf3}.m{fill:#9198a1}
+.pain{fill:#ff7b72}
+.fix{fill:#3fb950}.fixbg{fill:#0f2d1a;stroke:#238636}
+.ln{stroke:#656c76}.ah{fill:#656c76}
+}
+</style>
+<defs>
+<marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="ah"/></marker>
+<g id="c">
+<rect class="card" x="0" y="0" width="201" height="174" rx="10"/>
+<line class="ln" x1="100.5" y1="84" x2="100.5" y2="100" stroke-width="2" marker-end="url(#a)"/>
+<rect class="fixbg" x="8" y="106" width="185" height="60" rx="8"/>
+</g>
+</defs>
+<rect class="panel" x="0.5" y="0.5" width="879" height="391" rx="12"/>
+
+<g transform="translate(20 20)"><use href="#c"/>
+<text class="m" x="14" y="24" font-size="12" font-weight="700">01</text>
+<text class="pain" x="14" y="48" font-size="15" font-weight="700">中文塞不下</text>
+<text class="m" x="14" y="70" font-size="12">字号变小，文字出框</text>
+<text class="fix" x="20" y="130" font-size="15" font-weight="700">按中文重新排版</text>
+<text class="t" x="20" y="152" font-size="12">字号、行距、断行合规</text></g>
+
+<g transform="translate(233 20)"><use href="#c"/>
+<text class="m" x="14" y="24" font-size="12" font-weight="700">02</text>
+<text class="pain" x="14" y="48" font-size="15" font-weight="700">行话直译</text>
+<text class="m" x="14" y="70" font-size="12">jar 译成「罐子」</text>
+<text class="fix" x="20" y="130" font-size="15" font-weight="700">先认行业再翻译</text>
+<text class="t" x="20" y="152" font-size="12">jar 译作「震击器」</text></g>
+
+<g transform="translate(446 20)"><use href="#c"/>
+<text class="m" x="14" y="24" font-size="12" font-weight="700">03</text>
+<text class="pain" x="14" y="48" font-size="15" font-weight="700">插图模糊</text>
+<text class="m" x="14" y="70" font-size="12">件号看不清，易装错</text>
+<text class="fix" x="20" y="130" font-size="15" font-weight="700">插图放大 4 倍</text>
+<text class="t" x="20" y="152" font-size="12">件号气泡重画清晰</text></g>
+
+<g transform="translate(659 20)"><use href="#c"/>
+<text class="m" x="14" y="24" font-size="12" font-weight="700">04</text>
+<text class="pain" x="14" y="48" font-size="15" font-weight="700">图里的英文没翻</text>
+<text class="m" x="14" y="70" font-size="12">文字烧在图片里</text>
+<text class="fix" x="20" y="130" font-size="15" font-weight="700">图内文字也翻</text>
+<text class="t" x="20" y="152" font-size="12">逐处查漏，漏译清零</text></g>
+
+<g transform="translate(20 206)"><use href="#c"/>
+<text class="m" x="14" y="24" font-size="12" font-weight="700">05</text>
+<text class="pain" x="14" y="48" font-size="15" font-weight="700">图纸线条被抹坏</text>
+<text class="m" x="14" y="70" font-size="12">擦字时连线一起擦</text>
+<text class="fix" x="20" y="130" font-size="15" font-weight="700">只换字，不动线</text>
+<text class="t" x="20" y="152" font-size="12">剖面线、尺寸线原样</text></g>
+
+<g transform="translate(233 206)"><use href="#c"/>
+<text class="m" x="14" y="24" font-size="12" font-weight="700">06</text>
+<text class="pain" x="14" y="48" font-size="15" font-weight="700">表格错乱</text>
+<text class="m" x="14" y="70" font-size="12">错行错列，合并格丢失</text>
+<text class="fix" x="20" y="130" font-size="15" font-weight="700">按表格线重建</text>
+<text class="t" x="20" y="152" font-size="12">合并格原样保留</text></g>
+
+<g transform="translate(446 206)"><use href="#c"/>
+<text class="m" x="14" y="24" font-size="12" font-weight="700">07</text>
+<text class="pain" x="14" y="48" font-size="15" font-weight="700">目录对不上</text>
+<text class="m" x="14" y="70" font-size="12">页码失准，不能跳转</text>
+<text class="fix" x="20" y="130" font-size="15" font-weight="700">页码自动更新</text>
+<text class="t" x="20" y="152" font-size="12">点击跳转，自带书签</text></g>
+
+<g transform="translate(659 206)"><use href="#c"/>
+<text class="m" x="14" y="24" font-size="12" font-weight="700">08</text>
+<text class="pain" x="14" y="48" font-size="15" font-weight="700">数字、型号出错</text>
+<text class="m" x="14" y="70" font-size="12">扭矩值、件号被译丢</text>
+<text class="fix" x="20" y="130" font-size="15" font-weight="700">逐个自动核对</text>
+<text class="t" x="20" y="152" font-size="12">数字、型号不增不减</text></g>
+</svg>
