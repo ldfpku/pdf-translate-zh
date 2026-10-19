@@ -21,7 +21,8 @@
 
 ### 说明
 - 上游文档（docs.typesafe.ai/images、/primitives/box）2026-10-20 核实；图像功能为实验状态，格式与准确度可能随版本变。
-- 实测对照表（准确率、每页 token、耗时）**尚未填数**：本次环境没有密钥，`typesafe_bench.py` 跳过。
+- 实测对照（2026-10-20，仓库样本）：页面级别 TypeSafe 38/40、启发式 40/40；插图框文字标注 / 气泡 43/43；约 1.2k tok/框、3~4k tok/页；数字与读数见 `references/typesafe.md` §6。
+- `tools/typesafe_env.ps1`：在当前 PowerShell 里掩码输入密钥、只设本终端环境变量（不落盘）。
 
 ## [1.1.2] - 2026-09-24
 
