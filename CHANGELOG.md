@@ -22,6 +22,7 @@
 ### 说明
 - 上游文档（docs.typesafe.ai/images、/primitives/box）2026-10-20 核实；图像功能为实验状态，格式与准确度可能随版本变。
 - 实测对照（2026-10-20，仓库样本）：页面级别 TypeSafe 38/40、启发式 40/40；插图框文字标注 / 气泡 43/43；约 1.2k tok/框、3~4k tok/页；数字与读数见 `references/typesafe.md` §6。
+- 实文档对照 `tests/typesafe_realdoc.py`（按页清单 + 人工真值跑 Choice）：真实客户文档 122 页上模型 102 对、启发式 68 对；按 confidence ≥ 0.8 组合 111 对；见 `references/typesafe.md` §6.1。
 - `tools/typesafe_env.ps1`：在当前 PowerShell 里掩码输入密钥、只设本终端环境变量（不落盘）。
 
 ## [1.1.2] - 2026-09-24
