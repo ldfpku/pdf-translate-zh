@@ -178,6 +178,50 @@ def template_center(g, box, like):
                 t=t, rays={}, cx0=float(bx), cy0=float(by), method="template", score=best)
 
 
+def ring_by_bbox(g, bbox, dark=120, bright=200):
+    """第四法（可选兜底）：**外部给出的环外框**（如 TypeSafe Box 定位的气泡外轮廓）→ 环几何。
+
+    外框只给出环的外沿；环厚由中心沿四个轴向**从外沿向内扫**求得（外沿起向内：先暗后亮，暗段长即厚度），
+    四向取最小并封顶 0.3×内半径（与填洞法同一约束）。外框不可信（太小、出图外）时返回 None。
+    """
+    x0, y0, x1, y1 = bbox
+    cx, cy = (x0 + x1) / 2.0, (y0 + y1) / 2.0
+    rox, roy = (x1 - x0) / 2.0, (y1 - y0) / 2.0
+    H, W = g.shape
+    if rox < 6 or roy < 6 or not (0 <= cx < W and 0 <= cy < H):
+        return None
+
+    def _thick(sx, sy, dx, dy):
+        """从环外 +2 px 向内扫：跳过亮区到第一段暗，暗段长度即厚度；扫不到返回 None。"""
+        x, y, k, t, seen = sx, sy, 0, 0, False
+        while 0 <= x < W and 0 <= y < H and k < 40:
+            v = g[int(round(y)), int(round(x))]
+            if v < dark:
+                seen = True
+                t += 1
+            elif seen and v > bright:
+                break
+            x += dx
+            y += dy
+            k += 1
+        return t if seen and t >= 1 else None
+    ts = [_thick(cx + rox + 2, cy, -1, 0), _thick(cx - rox - 2, cy, 1, 0),
+          _thick(cx, cy + roy + 2, 0, -1), _thick(cx, cy - roy - 2, 0, 1)]
+    ts = [v for v in ts if v is not None]
+    if len(ts) < 2:
+        return None
+    t = min(min(ts), 0.3 * min(rox, roy))
+    t = max(t, 1.5)
+    a_in, b_in = rox - t, roy - t
+    rays = {}
+    for deg in range(0, 360, 5):
+        th = np.deg2rad(deg)
+        rin = a_in * b_in / np.sqrt((b_in * np.cos(th)) ** 2 + (a_in * np.sin(th)) ** 2)
+        rays[deg] = (rin, rin + t)
+    return dict(cx=cx, cy=cy, rin_x=a_in, rin_y=b_in, rout_x=rox, rout_y=roy, t=float(t),
+                rays=rays, cx0=cx, cy0=cy, method="bbox")
+
+
 def fit_quality(g, geo):
     """环路径上的平均墨迹（高=吻合）+ 环外 +5 px 圈上的暗采样数（引线外应为 0）。"""
     cx, cy = geo["cx"], geo["cy"]
@@ -208,12 +252,26 @@ def leader_angles(g, geo, dark=130):
     return out
 
 
-def redraw(im, d, box, text, like=None, font=FONT_NUM):
-    """返回 (几何字典 或 None, 覆盖矩形)。几何字典含 fit / leaders / method。"""
+def redraw(im, d, box, text, like=None, font=FONT_NUM, locate=None):
+    """返回 (几何字典 或 None, 覆盖矩形)。几何字典含 fit / leaders / method。
+
+    `locate`（可选）：`f(im, box) -> {"box": (x0,y0,x1,y1) 或 None, …}`，只在填洞 / 射线 / 模板三法
+    **都失败**时才被调用（如 tsjudge.bubble_ring）；返回的环外框经 `ring_by_bbox` 转成几何后同样要过
+    `fit_quality` 与 `residue_check`。缺省 None，行为不变。
+    """
     g = np.array(im.convert("L"))
     cands = [x for x in (ring_by_holes(g, box), ring_by_rays(g, box)) if x is not None]
     if like is not None:
         cands.append(template_center(g, box, like))
+    if not cands and locate is not None:
+        try:
+            r = locate(im, box)
+        except Exception as e:          # 网络/配额/格式变动：兜底失败等同没有兜底
+            r = {"box": None, "error": "%s: %s" % (type(e).__name__, e)}
+        geo = ring_by_bbox(g, r["box"]) if r and r.get("box") else None
+        if geo is not None:
+            geo["locate"] = {k: r[k] for k in ("present", "confidence", "input_tokens", "seconds") if k in r}
+            cands.append(geo)
     if not cands:
         return None, None
     scored = sorted(((fq[0] - 12.0 * fq[1], fq, geo) for geo in cands for fq in [fit_quality(g, geo)]),
@@ -291,13 +349,14 @@ def residue_check(im_out, geo, others=(), dark=130):
     return bad
 
 
-def apply_image(im, boxes, mapping, like_map=None):
-    """一幅图：mapping={框号: 编号}，like_map={框号: 参照框号}。返回 (geos, 覆盖矩形列表, 残留失败列表)。"""
+def apply_image(im, boxes, mapping, like_map=None, locate=None):
+    """一幅图：mapping={框号: 编号}，like_map={框号: 参照框号}。返回 (geos, 覆盖矩形列表, 残留失败列表)。
+    `locate` 透传给 redraw（三法都失败时的可选兜底），缺省 None。"""
     d = ImageDraw.Draw(im)
     like_map = like_map or {}
     geos, cov, bad = {}, [], []
     for i, txt in sorted(mapping.items(), key=lambda kv: kv[0] in like_map):
-        geo, rect = redraw(im, d, boxes[i], txt, like=geos.get(like_map.get(i)))
+        geo, rect = redraw(im, d, boxes[i], txt, like=geos.get(like_map.get(i)), locate=locate)
         if geo is None:
             bad.append((i, txt, "geometry"))
             continue

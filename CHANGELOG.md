@@ -2,6 +2,27 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.2.0] - 2026-10-20
+
+### 新增
+- **TypeSafe 图像判断（可选，默认关闭）** `scripts/tsjudge.py`：把 System One 模型 Jev（固定 `jev-1.14.0`）的类型化判断接在启发式看不见的三处，
+  都是**附加输出、不改原判据**：① `route.py --typesafe` 逐页 Choice（R/P/S/空白）对照，`route.json` 记各行 `ts` 与文档级 `ts_disagree`、`ts_usage`；
+  ② `figpipe.py detect` 逐图 Noul「有无文字」、逐框 Noul「是文字标注 / 是件号气泡」→ `data/det_hints.json`（`det_boxes.json` 与框号不变）；
+  ③ `figpipe.py apply` 件号气泡在填洞 / 射线 / 模板三法都失败时，用 Noul 判存在 + Box 定环（`bubbles.ring_by_bbox`、`redraw(locate=…)`），结果仍过残留判据；
+  另有 `tsjudge.py tables` 对 `tablefix.regions()` 的每块区域问「是不是真表格」。
+  开关只认环境变量 `PDF_ZH_TYPESAFE=1`，密钥只从 `TYPESAFE_API_KEY` 读（不读 config.json、不写文件、不进日志）；
+  图像预处理 `prepare_image()`（转正、长边 ≤ 1568、短边 ≥ 280、补白、PNG）独立成函数；模型名 / 端点 / 请求头 / 文档核实日期集中在文件顶部；
+  只用标准库联网，不新增依赖。关闭时流水线入口都不 import 该模块（只有 `doctor.py` 读一行状态），默认产物逐字节不变。
+- `doctor.py` 多一行「TypeSafe 图像判断：开关 / 密钥有无 / 模型」（不显示密钥值、不联网）。
+- `tests/test_tsjudge_offline.py`（不联网：预处理边界、Box 坐标回算、占位模式写盘格式、关闭/占位产物对比）；
+  `tests/typesafe_bench.py`（启发式 vs TypeSafe 小规模对照，没有密钥时跳过并说明；`--dry-run` 只构造请求并核对上游限制）。
+- `SKILL.md` §1 新增「第 0.8 步：图像判断（可选）」；新分册 `references/typesafe.md`（何时开、怎么开、限制、费用、回退、实测表）；
+  「数据合规」段补充开启后图片会发到 api.typesafe.ai。
+
+### 说明
+- 上游文档（docs.typesafe.ai/images、/primitives/box）2026-10-20 核实；图像功能为实验状态，格式与准确度可能随版本变。
+- 实测对照表（准确率、每页 token、耗时）**尚未填数**：本次环境没有密钥，`typesafe_bench.py` 跳过。
+
 ## [1.1.2] - 2026-09-24
 
 仅文档更新，技能本体与引擎行为不变。

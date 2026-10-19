@@ -134,7 +134,43 @@ def detect(work, src="figures_sr", stems=None):
         print("  %s: %d 个文字块 → qa/det_%s.png" % (stem, len(bs), stem))
     json.dump({"src": os.path.basename(sdir), "boxes": boxes},
               open(os.path.join(P["data"], "det_boxes.json"), "w", encoding="utf-8"), indent=1)
+    if _ts():
+        _ts_hints(P, sdir, boxes)        # 可选：TypeSafe 逐图逐框提示 → data/det_hints.json（det_boxes.json 不动）
     return boxes
+
+
+def _ts():
+    """TypeSafe 图像判断开关（PDF_ZH_TYPESAFE=1 且有 TYPESAFE_API_KEY）。关闭时不 import tsjudge。"""
+    if os.environ.get("PDF_ZH_TYPESAFE", "").strip().lower() not in ("1", "true", "yes", "on"):
+        return None
+    import tsjudge
+    return tsjudge if tsjudge.enabled() else None
+
+
+def _ts_hints(P, sdir, boxes):
+    """逐图：有无文字（Noul）；逐框：是文字标注 / 是件号气泡（Noul）。只是提示，labels_zh.py 仍按核查图核对。"""
+    ts = _ts()
+    hints, tok, sec = {}, 0, 0.0
+    for stem, bs in boxes.items():
+        try:
+            h = ts.figure_hints(Image.open(os.path.join(sdir, stem + ".png")), bs)
+        except Exception as e:                  # 网络/配额/格式变动：记错误，检测结果不受影响
+            hints[stem] = {"error": "%s: %s" % (type(e).__name__, e)}
+            print("  %s: TypeSafe 失败 %s" % (stem, hints[stem]["error"]))
+            continue
+        hints[stem] = {"has_text": h["has_text"], "boxes": {str(i): v for i, v in h["boxes"].items()},
+                       "input_tokens": h["input_tokens"], "seconds": h["seconds"]}
+        tok += h["input_tokens"]
+        sec += h["seconds"]
+        print("  %s: TypeSafe 有文字 %.2f；文字框 %s；气泡框 %s  （%d tok，%.1fs）" % (
+            stem, h["has_text"] if h["has_text"] is not None else -1,
+            [i for i, v in sorted(h["boxes"].items()) if v["text"] >= ts.NOUL_YES],
+            [i for i, v in sorted(h["boxes"].items()) if v["bubble"] >= ts.NOUL_YES],
+            h["input_tokens"], h["seconds"]))
+    json.dump({"model": ts.MODEL, "docs_date": ts.DOCS_DATE, "thresholds": {"noul_yes": ts.NOUL_YES},
+               "figures": hints},
+              open(os.path.join(P["data"], "det_hints.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    print("  TypeSafe 提示写入 data/det_hints.json（合计 %d tok，%.1fs）" % (tok, sec))
 
 
 def _det(work):
@@ -152,6 +188,8 @@ def apply(work, LABELS, BUBBLES=None, LIKE=None, font_scale=0.98):
     os.makedirs(P["out"], exist_ok=True)
     f_reg, f_bold = fontkit.find("zh"), fontkit.find("zh-bold")
     errors, covered, report, breport = [], {}, {}, {}
+    ts = _ts()
+    locate = ts.bubble_ring if ts else None     # 可选兜底：三法都求不出环心的气泡交给 TypeSafe Box 定环
     for f in sorted(os.listdir(sdir)):
         if not f.endswith(".png") or f.endswith("_rgba.png"):
             continue
@@ -211,7 +249,7 @@ def apply(work, LABELS, BUBBLES=None, LIKE=None, font_scale=0.98):
             if lab.get(i) != KEEP:
                 errors.append((stem, "气泡框须标 KEEP", i))
         geos, bcov, bad = bubbles.apply_image(im, bs, {i: t for i, t in mapping.items() if lab.get(i) == KEEP},
-                                              LIKE.get(stem, {}))
+                                              LIKE.get(stem, {}), locate=locate)
         cov += [list(r) for r in bcov]
         errors += [(stem, "气泡") + tuple(b) for b in bad]
         for i in range(len(bs)):
@@ -219,7 +257,8 @@ def apply(work, LABELS, BUBBLES=None, LIKE=None, font_scale=0.98):
                 cov.append(bs[i])
         covered[stem], report[stem] = cov, rep
         breport[stem] = {str(i): {k: (round(v, 1) if isinstance(v, float) else v) for k, v in g.items()
-                                  if k in ("cx", "cy", "rout_x", "rout_y", "method", "fit", "residue")} for i, g in geos.items()}
+                                  if k in ("cx", "cy", "rout_x", "rout_y", "method", "fit", "residue", "locate")}
+                         for i, g in geos.items()}
         im.save(os.path.join(P["out"], f))
         if im.width >= 1200:
             im.save(os.path.join(P["out"], stem + ".jpg"), quality=92, subsampling=0, optimize=True)

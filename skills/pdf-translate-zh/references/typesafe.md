@@ -1,0 +1,133 @@
+# 图像判断（可选）：TypeSafe / Jev 接入（typesafe）
+
+> 主干见 `SKILL.md` §1 第 0.8 步。本册讲**什么时候开、怎么开、接在哪、限制与费用、怎么回退**。
+> 依赖的上游：模型 **jev-1.14.0**；文档 docs.typesafe.ai/images、/primitives/box、/api 与
+> typesafe.ai/blog/jev-1-14，**2026-10-20 核实**。上游明说图像功能是实验状态（"Dreamer-ready"，
+> 不建议生产），请求格式、限制、准确度都可能随版本变 —— 再次使用前先对一遍这页的「上游约束」。
+
+**目录**：0. 一句话 · 1. 前提：密钥由用户自己设 · 2. 开关与回退 · 3. 接在哪（三处）与为什么不接别处 ·
+4. 上游约束 · 5. 费用与耗时 · 6. 实测对照 · 7. 阈值 · 8. 实现要点
+
+---
+
+## 0. 一句话
+
+TypeSafe 的 System One 模型 Jev **不生成文本，只返回类型化判断**：Choice（单选 + 各项概率 + 置信度）、
+Noul（「是」的概率）、Box（目标在图里的四边比例坐标 + 置信度）。本技能把它接在**现有启发式看不见**的
+几处 —— 页面图、插图裁片、表格区裁片 —— 作为**对照与提示**，不替代任何判据，默认关闭。
+
+## 1. 前提：密钥由用户自己设，开工前提醒一次
+
+- 只有用户**自己**把密钥放进环境变量 `TYPESAFE_API_KEY` 时才能用。**不要在聊天里索要密钥、不要让用户贴到
+  对话里、不要写进 config.json / 词表 / 工作区的任何文件、不要出现在日志里。** 代码只从环境变量读。
+- 自检或启用前**提醒用户一次**，措辞照这个意思即可：
+  > 本步骤可选用 TypeSafe 图像判断（会把页面图 / 插图裁片发到 api.typesafe.ai，按输入 token 计费）。
+  > 要开启请在你自己的环境里设置 `TYPESAFE_API_KEY` 与 `PDF_ZH_TYPESAFE=1` 后重开终端；不设置则照常走本机启发式。
+- 用户没设就**不开、不追问**，`doctor.py` 与 `tsjudge.py status` 只报「开关 关 / 密钥 无」，流程照常。
+- 数据合规：开启后页面图与插图裁片会离开本机。客户资料、带保密标记的文档，先看 `SKILL.md` 顶部「数据合规」。
+
+Windows 设法（只在用户自己的终端里做）：
+
+```powershell
+setx TYPESAFE_API_KEY "<密钥>"      # 只对**新开**的终端生效
+setx PDF_ZH_TYPESAFE 1
+```
+
+macOS / Linux：`export TYPESAFE_API_KEY=…; export PDF_ZH_TYPESAFE=1`（写进 shell 配置才持久）。
+
+## 2. 开关与回退
+
+| 变量 | 作用 |
+|---|---|
+| `PDF_ZH_TYPESAFE=1` | 总开关。**只认环境变量**，不读 config.json（config.json 跟着技能走到每台电脑，「把图片上传到云端」这种开关不该被静默带走） |
+| `TYPESAFE_API_KEY` | 密钥，只从环境变量读 |
+| `PDF_ZH_TYPESAFE_MOCK=1` | 离线占位：不联网，返回固定答案（测写盘格式与坐标换算用；`tests/test_tsjudge_offline.py`） |
+| `TYPESAFE_BASE_URL` | 一般不设；与官方 SDK 同名 |
+
+**关闭时流水线入口（`translate_pdf` / `route` / `figpipe` / 工作区 `build.py`）都不 `import tsjudge`**（只有体检工具 `doctor.py` 导入它读一行状态，不联网），`route.py` / `figpipe.py` / `bubbles.py` 的产物与 1.1.2 逐字节一致
+（`tests/test_tsjudge_offline.py` 对 `route.json`、`det_boxes.json` 做关闭/占位两次对比）。
+开启后任何一次调用失败（网络、配额、上游格式变动）都**只记一条错误、不中断**：定级照启发式、检测框照旧、
+气泡照三法结果；错误写在 `route.json` 的 `ts.error` / `ts_errors`、`det_hints.json` 的 `error`、
+`bubble_report.json` 的 `locate.error`。
+
+## 3. 接在哪（三类接入点、四处）与为什么不接别处
+
+| 接入点 | 原语 | 入口 | 输入 | 输出（都是**附加**，不改原判据） |
+|---|---|---|---|---|
+| 页面级别 | Choice（R / P / S / blank；blank 计作 R） | `route.py --typesafe` 或开关打开时 `translate_pdf.py` 自动 | 抽样页渲染 110 dpi 的页面图；criteria 为文字描述，可带示例页图（`tsjudge.page_level(png, {"R": [...], "P": [...]})`） | `route.json` 各行 `ts{level, confidence, probabilities, input_tokens, seconds}`，文档级 `ts_disagree`（分歧页）、`ts_usage` |
+| 插图：有无文字、逐框是文字标注 / 是件号气泡 | Noul ×（1 + 2×框数） | `figpipe.py detect`（开关打开时） | 超分后的整幅图 + 每个检测框外扩 60% 的裁片，一次请求最多 16 片 | `data/det_hints.json`（`det_boxes.json` 不动；**框号不变**） |
+| 件号气泡定环 | Noul 判存在 + Box | `figpipe.py apply` → `bubbles.redraw(locate=…)` | 以编号框为中心、四周各扩 4 倍框尺寸 + 40 px 的裁片 | **只在填洞 / 射线 / 模板三法都失败时**才问；Box 换算回图像像素后经 `bubbles.ring_by_bbox` 转成环几何，仍要过 `fit_quality` 与 `residue_check`；`bubble_report.json` 记 `method="bbox"` 与 `locate{present, confidence, …}` |
+| 表格区是不是真表格 | Noul | `tsjudge.py tables <pdf> [页号,…]` | `tablefix.regions()` 的每块区域渲染 2.5× | 只打印概率，供骨架 `build.py` 的「先确认 `regions()` 认对了表」这一步参考；`fix_pages` 不动 |
+
+**H 不是页面选项**：H 是「同一文档里 R 页与 P 页并存」的文档级属性，由代码汇总，模型只判单页。
+
+**为什么页面级别只对照不改判**：现有启发式的误判（`route.py` 顶部）是已知且有具体判据的；模型的准确度在本技能的文档类型上
+**尚未实测**（§6 为空表），且 Choice 的 confidence 只是概率分布的集中度，不是正确率。分歧页列出来给人目检 ——
+定级本来就是「建议不是判决」（再问三问：坐标有语义吗？格子要回填吗？删掉版式重排后信息有损吗？）。
+
+**没有接的地方（证据不足，列出理由）**：
+
+- **图纸标题栏定位**：`dwgnote.py` 按文本层锚点（`UNLESS OTHERWISE SPECIFIED`）认注记格，再由竖线定内框 —— 有文本层时 Box
+  帮不上忙；注记被导成描边曲线时 Box 虽能定位，但 `dwgnote.parse` 没有文字可解析，整格重排无从做起。两头都没有收益。
+- **A 类（矢量真文字）与 B 类（描边）图内文字**：坐标都从 PDF 对象直接取（`figcrop` / `vectext.runs`），不需要看图。
+- **读气泡里的数字**：Jev 不生成文本；零件表给出闭集时理论上可用 Choice「读数」，但这超出本次三处候选，未做（见 §8 末）。
+
+## 4. 上游约束（2026-10-20）
+
+- 每个含图或含 Box 的请求必须带 HTTP 头 `TypeSafe-Danger-Zone-Images: true`，否则 400。
+- 图片放在请求顶层 `assets` 映射（本技能用 JSON + `data_base64`），正文里用唯一引用串（UUID）替换；同一张图被引用几次就计几次大小与 token。
+- 限制：PNG / JPEG 静态图；单图 ≤ 16 MiB；**边长 280~1568 px**；总像素 78,400~2,458,624；请求体 ≤ 32 MiB；
+  超限整个请求被拒、**不缩放**；EXIF 方向不处理。`tsjudge.prepare_image()` 统一：转正 → 长边 ≤ 1568 缩小 / 短边 < 280 放大 →
+  仍不够的一边在**右、下**补白 → PNG；并返回换算量，Box 结果换回源图像素。
+- Box：只在 jev-1.14.0；返回 `{top, bottom, left, right}`（0~1）与 `confidence`（0~1，**不是校准概率**）；
+  **没有「找不到」的答案** —— 本技能每个 Box 都配一个 Noul 判存在，`present < 阈值` 或 `confidence < 阈值` 即视为未定位；
+  一问一目标；大图里的小目标先裁区域再问（气泡用编号框外扩的裁片）。
+- 上游建议把问题拆成最简单的步骤；所有模型看图都比看文字差。
+- 模型页（/models）当日仍把各 Jev 版本标为「仅文本」，而 /images 与 1.14 博客说明 1.13/1.14 接受图片、Box 需 1.14；以后者为准，再次使用前复核。
+
+## 5. 费用与耗时
+
+- 按**输入 token** 计费，图像算输入 token，返回的 `usage.input_tokens` 已含图像；输出 token 免费（/models，2026-10-20）。
+- 每次调用的 token 与秒数都随结果落盘（`route.json` 的 `ts_usage`、`det_hints.json`、`bubble_report.json`）；
+  `tests/typesafe_bench.py` 汇总为每页 / 每框均值。上游尚未给出图像 token 的估算公式。
+- 控费：同一张图放在 `state` 里被多个问题按路径引用（一张图一次计费），不要写进每个问题的 instructions；裁片 16 片一请求，
+  整幅图只随第一批裁片发一次。**示例页图是每次请求的成本**：`page_level` 带示例时，每页请求都重发全部示例图（bench 里 40 页 × 2 例），
+  示例只在对照实验里用，日常 `route --typesafe` 不带示例。
+
+## 6. 实测对照
+
+**本表尚无数字。** 填表命令（需要用户自己设好密钥；没有密钥时脚本跳过并说明）：
+
+```bash
+py tests\typesafe_bench.py            # macOS / Linux：python3 tests/typesafe_bench.py
+py tests\typesafe_bench.py --dry-run  # 不联网：只构造请求并核对上游限制（已验证：页面请求 40 个、插图请求 9 个，均在限制内）
+```
+
+样本都在仓库里（虚构文档，无客户资料）：`docs/showcase/SWI-650-SS_Assembly_en.pdf`（R，11 页）、
+`docs/showcase/TDT-650-0100_Assembly_en.pdf`（P，3 张）、`tests/gen_testdocs.py` 的 3 份（R / R / P）。
+
+| 项 | 样本 | 启发式准确率 | TypeSafe 准确率 | token/页或框 | 秒/页或幅 | 日期 · 模型 |
+|---|---|---|---|---|---|---|
+| 页面级别 | 5 份 40 页（示例页除外） | 待填 | 待填 | 待填 | 待填 | 待填 |
+| 插图框：文字标注 / 件号气泡 | SWI 8 幅 43 框（真值 `examples/showcase-swi/content/labels_zh.py`；框数不一致的图跳过） | — | 待填 | 待填 | 待填 | 待填 |
+| 表格区 | TDT 6 块（无负例，只列概率） | — | — | 待填 | 待填 | 待填 |
+
+填数时写上日期与 `tsjudge.MODEL`；上游换版本后旧数字作废。
+
+## 7. 阈值（都是未实测的缺省值）
+
+| 常量（`tsjudge.py`） | 缺省 | 用在 |
+|---|---|---|
+| `NOUL_YES` | 0.6 | Noul 判「是」；`det_hints.json` 与 `tables` 命令按它分列 |
+| `BOX_MIN_CONF` | 0.5 | Box 置信度低于此不采用（气泡定环） |
+
+Noul 接近 0.5 表示「是与否概率相近」，不是「中等程度」；Choice 的 confidence 是分布集中度。都要在自己的图上调。
+
+## 8. 实现要点
+
+- 模块 `scripts/tsjudge.py`：只用标准库 `urllib` + Pillow（已在核心依赖），**不新增包**；模型名、端点、请求头、文档日期集中在文件顶部。
+- 错误只带 HTTP 状态码与上游错误码，不带请求体、不带密钥。
+- 入口里的开关判断先看环境变量，再 `import tsjudge`（`route._ts_wanted`、`figpipe._ts`）。
+- 离线自检 `tests/test_tsjudge_offline.py`：预处理边界（40×40、1568×90、4000×3000、EXIF 方向 6）、Box 回算 ±1 px、
+  占位模式下各入口写盘格式、关闭/占位两次产物对比、`ring_by_bbox` 还原环心与环厚、`redraw` 只在三法失败时调 `locate`。
+- 可能的后续（未做）：零件表闭集 + Choice 读气泡数字；`tables` 的结果接进 `fix_pages` 做自动确认 —— 都要先有 §6 的数字。

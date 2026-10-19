@@ -30,6 +30,8 @@ jobs:
         run: python skills/pdf-translate-zh/scripts/bootstrap.py
       - name: Smoke test
         run: python tests/smoke_test.py
+      - name: TypeSafe offline self-check (no network, proves default path unchanged)
+        run: python tests/test_tsjudge_offline.py
       - name: Package
         run: python tools/package.py
       - name: Upload outputs on failure

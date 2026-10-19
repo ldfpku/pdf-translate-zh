@@ -200,6 +200,15 @@ def main(argv):
                     f"离线机器：把 RealESRGAN_x4plus.pth 放到 {w}，或设 PDF_ZH_SR_WEIGHTS")
     except Exception as e:
         say("WARN", f"未能检查插图超分：{e}")
+    # 可选云端判断：只报开关与密钥有无（不显示值、不联网）；关闭是正常状态，不算 WARN
+    try:
+        import tsjudge
+        half = tsjudge.switch_on() and not tsjudge.enabled()      # 开了开关却没密钥：想用而用不了
+        say("WARN" if half else "OK",
+            tsjudge.status_line() + ("" if tsjudge.switch_on() else "（可选功能，关闭即走启发式）"),
+            "开关已开但没有密钥：用户自己设环境变量 TYPESAFE_API_KEY（不要发到聊天、不写进文件）" if half else None)
+    except Exception as e:
+        say("WARN", f"未能检查 TypeSafe 图像判断：{e}")
 
     if "--selftest" in argv:
         print("\n[4] 引擎冒烟自检")

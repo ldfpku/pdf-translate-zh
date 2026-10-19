@@ -15,7 +15,11 @@ V2 公理：忠实的对象是**内容与表达方式**，不是英文版的物�
   表格单元格边框同样是扁长矩形，实测会把 8 份纯文字档全判成表单。
 
 用法：
-    python route.py <file.pdf> [more.pdf ...] [--json out.json] [--max-pages 80]
+    python route.py <file.pdf> [more.pdf ...] [--json out.json] [--max-pages 80] [--typesafe]
+
+--typesafe（或环境变量 PDF_ZH_TYPESAFE=1 且设有 TYPESAFE_API_KEY）：另把每个抽样页渲染成图，
+交给 TypeSafe 的 Jev 模型做一次 Choice（R/P/S/空白），结果写进各行的 `ts` 与文档级 `ts_disagree`，
+**只记录与对照，不改判级**（启发式仍是 `level`）。关闭时本脚本不会 import tsjudge。详见 references/typesafe.md。
 """
 import os as _os, sys as _sys  # noqa: E401
 _sys.dont_write_bytecode = True   # 不往（可能只读的）技能目录写 __pycache__
@@ -81,7 +85,29 @@ def page_level(m):
     return "R", "散文/步骤/表格"
 
 
-def classify(path, max_pages=MAX_PAGES):
+def _ts_wanted(flag):
+    """None = 看环境变量开关；True/False = 调用方明示。只有为真时才 import tsjudge。"""
+    if flag is None:
+        flag = os.environ.get("PDF_ZH_TYPESAFE", "").strip().lower() in ("1", "true", "yes", "on")
+    if not flag:
+        return None
+    import tsjudge
+    return tsjudge if tsjudge.enabled() else None
+
+
+def _ts_page(ts, pg, row):
+    """TypeSafe 判一页，结果挂到 row["ts"]；任何失败只记一条 error，不影响启发式。"""
+    try:
+        r = ts.page_level(ts.page_png(pg))
+        row["ts"] = dict(level=r["level"], confidence=round(r["confidence"], 3),
+                         probabilities={k: round(v, 3) for k, v in r["probabilities"].items()},
+                         input_tokens=r["input_tokens"], seconds=r["seconds"])
+    except Exception as e:                      # 网络/配额/格式变动：一行提示，启发式结果原样
+        row["ts"] = dict(error="%s: %s" % (type(e).__name__, e))
+
+
+def classify(path, max_pages=MAX_PAGES, typesafe=None):
+    ts = _ts_wanted(typesafe)
     d = fitz.open(path)
     n = d.page_count
     step = max(1, -(-n // max_pages))
@@ -90,7 +116,10 @@ def classify(path, max_pages=MAX_PAGES):
     for i in idx:
         m = page_metrics(d[i])
         lv, why = page_level(m)
-        rows.append(dict(page=i + 1, level=lv, kind=why, **m))
+        row = dict(page=i + 1, level=lv, kind=why, **m)
+        if ts is not None:
+            _ts_page(ts, d[i], row)
+        rows.append(row)
     d.close()
     cnt = Counter(r["level"] for r in rows)
     chars = sum(r["chars"] for r in rows) / max(1, len(rows))
@@ -105,9 +134,19 @@ def classify(path, max_pages=MAX_PAGES):
         doc, why = "P", "全是图纸/表单：原页叠印（references/overlay.md）"
     else:
         doc, why = "R", "散文/步骤/表格为主：语义重排（默认路线）"
-    return dict(file=path, pages=n, sampled=len(rows), level=doc, reason=why,
-                counts=dict(cnt), p_pages=[r["page"] for r in rows if r["level"] == "P"],
-                s_pages=[r["page"] for r in rows if r["level"] == "S"], rows=rows)
+    res = dict(file=path, pages=n, sampled=len(rows), level=doc, reason=why,
+               counts=dict(cnt), p_pages=[r["page"] for r in rows if r["level"] == "P"],
+               s_pages=[r["page"] for r in rows if r["level"] == "S"], rows=rows)
+    if ts is not None:
+        # 对照记录：模型判「blank」视同 R（空白页本就走重排）；分歧页只列出，判级不改
+        ok = [r for r in rows if "ts" in r and "level" in r["ts"]]
+        dis = [r["page"] for r in ok if (r["ts"]["level"] if r["ts"]["level"] != "blank" else "R") != r["level"]]
+        res["ts_model"] = ts.MODEL
+        res["ts_disagree"] = dis
+        res["ts_errors"] = [r["page"] for r in rows if "ts" in r and "error" in r["ts"]]
+        res["ts_usage"] = dict(pages=len(ok), input_tokens=sum(r["ts"]["input_tokens"] for r in ok),
+                               seconds=round(sum(r["ts"]["seconds"] for r in ok), 1))
+    return res
 
 
 def main(argv):
@@ -117,6 +156,14 @@ def main(argv):
         k = args.index("--json"); out_json = args[k + 1]; del args[k:k + 2]
     if "--max-pages" in args:
         k = args.index("--max-pages"); maxp = int(args[k + 1]); del args[k:k + 2]
+    typesafe = None
+    if "--typesafe" in args:
+        args.remove("--typesafe")
+        typesafe = True
+        import tsjudge
+        if not tsjudge.enabled():
+            print(tsjudge.status_line() + "\n  " + tsjudge.REMINDER)
+            typesafe = False
     if not args:
         print(__doc__)
         return 2
@@ -129,7 +176,7 @@ def main(argv):
         if not os.path.isfile(p):
             print("跳过（不存在）", p)
             continue
-        r = classify(p, maxp)
+        r = classify(p, maxp, typesafe)
         res.append(r)
         print("%s  %d 页（抽 %d）  定级 %s  —— %s"
               % (os.path.basename(p), r["pages"], r["sampled"], r["level"], r["reason"]))
@@ -137,6 +184,11 @@ def main(argv):
             print("    P 级页：", r["p_pages"][:40])
         if r["s_pages"] and r["level"] != "S":
             print("    S 级页：", r["s_pages"][:40])
+        if "ts_usage" in r:
+            u = r["ts_usage"]
+            print("    TypeSafe（%s，只对照不改判）：%d 页，分歧页 %s，出错页 %s，共 %d tok，%.1f s"
+                  % (r["ts_model"], u["pages"], r["ts_disagree"] or "无", r["ts_errors"] or "无",
+                     u["input_tokens"], u["seconds"]))
     if out_json:
         with open(out_json, "w", encoding="utf-8") as fh:
             json.dump(res, fh, ensure_ascii=False, indent=1)

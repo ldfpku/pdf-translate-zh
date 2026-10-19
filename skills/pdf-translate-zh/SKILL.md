@@ -4,7 +4,7 @@ description: 工业/石油/机械/工程技术类英文 PDF → 出版级简体�
 license: Apache-2.0
 compatibility: Python 3.9+（Windows / macOS / Linux）；依赖首次运行自动安装
 metadata:
-  version: "1.1.2"
+  version: "1.2.0"
   repository: https://github.com/ldfpku/pdf-translate-zh
 ---
 
@@ -34,10 +34,12 @@ metadata:
 | `formulas.md` | 有算式、Symbol 造字区字符、上下标、分数时 |
 | `slides.md` | PPT 导出的横版讲义（S 级） |
 | `pipeline.md` | 模板册（同版式重复 N 次）、散文 ≥ 30 页、或多册并行时 |
+| `typesafe.md` | 用户设了 `TYPESAFE_API_KEY` 想开 TypeSafe 图像判断（定级对照、图内文字/气泡提示、气泡定环兜底）时 |
 | `scripts/README.md` | 模块地图、依赖与可移植性细节 |
 
-> **数据合规（开工前看一眼）**：`scripts/` 全在本机运行，不上传文档内容；但**译写由你
-> 当前所用的模型完成**，云端模型会收到原文与译文。文件看起来是客户资料、带保密/专有
+> **数据合规（开工前看一眼）**：`scripts/` 默认全在本机运行，不上传文档内容；但**译写由你
+> 当前所用的模型完成**，云端模型会收到原文与译文。可选的 TypeSafe 图像判断（§1 第 0.8 步）开启后，
+> 页面图与插图裁片也会发到 api.typesafe.ai —— 默认关闭。文件看起来是客户资料、带保密/专有
 > 标记（Confidential、Proprietary、NDA、Export Controlled、ITAR/EAR 等）或含个人信息，
 > 而你不确定当前是否在用本地模型时，开工前用一句话提醒用户：这类资料交给公有云模型处理
 > 须符合当地法律与合同约定，敏感文档宜改用本地部署的模型（仓库 README「本地模型方案」）。
@@ -131,6 +133,29 @@ AWS = 焊接……）②**产品域词汇**（motor/stator/rotor/jar/BHA → 井
 抽 3 页比对「字段标签集合」：同一模板重复 N 次、只换数据（规格页/数据表册/检验记录）
 → **提取-重建制**：标签驱动结构化提取、数值文本层直取零转录、标签字典闭集译一次全册
 生效、提取值与源页逐 token 对账 = 0。见 `pipeline.md` §1。
+
+### 第 0.8 步：图像判断（可选，默认关闭）→ `references/typesafe.md`
+
+TypeSafe 的 Jev 模型（固定 **jev-1.14.0**，上游文档 2026-10-20 核实）只返回**类型化判断**（Choice / Noul / Box），
+不生成文本。本技能把它接在启发式看不见的几处，**都是附加输出，不改任何原判据**：
+
+| 接入点 | 原语 | 怎么开 | 得到什么 |
+|---|---|---|---|
+| 页面级别对照 | Choice（R/P/S/空白） | `route.py --typesafe`，或开关打开后 `translate_pdf.py` 自动 | `route.json` 各行 `ts`、文档级 `ts_disagree`（分歧页目检） |
+| 插图：有无文字、逐框是文字标注 / 件号气泡 | Noul | 开关打开后 `figpipe.py detect` 自动 | `data/det_hints.json`（框号不变，写 `labels_zh.py` 时参考） |
+| 件号气泡定环兜底 | Noul 判存在 + Box | 开关打开后 `figpipe.py apply` 自动 | 填洞/射线/模板三法都失败的气泡才问；结果仍过残留判据 |
+| 表格区是否真表格 | Noul | `tsjudge.py tables <pdf> [页号]` | 每块区域的概率，供填 `TABLE_PAGES` 前确认 |
+
+- **何时开**：定级分歧多的文档、插图框很多（几十框以上）需要预分类、或气泡三法失败报「geometry」时。平时不开。
+- **怎么开（必须由用户自己做）**：用户在自己的环境里设 `TYPESAFE_API_KEY` 与 `PDF_ZH_TYPESAFE=1`。启用或自检前
+  **提醒用户一次**：图片会发到 api.typesafe.ai、按输入 token 计费、密钥只放环境变量。**绝不在聊天里索要密钥，
+  不写进任何文件或日志**；用户没设就不开、不追问，流程照常。
+- **限制**：实验功能（上游称 Dreamer-ready，不建议生产，格式与准确度可能随版本变）；PNG/JPEG、边长 280~1568 px、
+  超限整个请求被拒（`tsjudge.prepare_image()` 统一转正、缩放、补白）；Box 没有「找不到」答案，必配 Noul 判存在；
+  置信度不是校准概率，阈值（`NOUL_YES` 0.6、`BOX_MIN_CONF` 0.5）**未实测**。
+- **费用**：按输入 token 计费，图像算输入 token；每次调用的 token 与秒数随结果落盘。实测对照表在 `typesafe.md` §6
+  （目前为空，`tests/typesafe_bench.py` 填）。
+- **回退**：任何一次调用失败只记错误、不中断；关闭时流水线入口都不 `import tsjudge`，产物与关闭前逐字节一致。
 
 ### 第 0.9 步：规模判断
 

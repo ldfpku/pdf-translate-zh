@@ -93,6 +93,7 @@ vectext.overlay(doc[pi], RASTER_ZH[pi])          # 图内位图英文
 | `bubbles.py` | **件号气泡**：填洞/射线/模板三法求环心 → 擦旧环补引线 → 重绘环与 Arial Bold 编号 → 旧环残留判据 → 放大拼贴 |
 | `figpipe.py` | **R 级位图插图一条龙**：`extract`（按 xref 提原图、SMask 合成、记有效 dpi → `data/images.json`）→（`sr.py`）→ `detect`（带框号核查图）→ `apply`（按内容层 `labels_zh.py` 的框号译名回叠、`BUBBLES` 气泡重绘）→ `sweep` 漏译归零 → `sheet` 气泡拼贴 |
 | `uniq_desc.py` | 列出「零件描述」的唯一串，建规则化译名用 |
+| `tsjudge.py` | **TypeSafe 图像判断（可选，默认关闭）**：`PDF_ZH_TYPESAFE=1` + 用户自设 `TYPESAFE_API_KEY` 才启用；页面级别 Choice 对照（`route --typesafe`）、插图逐框 Noul 提示（`figpipe detect` → `det_hints.json`）、气泡 Noul+Box 定环兜底（`figpipe apply`）、表格区 Noul（`tsjudge tables`）；模型 jev-1.14.0，图像预处理 `prepare_image()`，只用标准库联网；见 `references/typesafe.md` |
 | `selftest.py` | 引擎冒烟自检：`zh()` 单测、块 DSL 参数位置、装配与几何 |
 
 ---
@@ -126,3 +127,4 @@ vectext.overlay(doc[pi], RASTER_ZH[pi])          # 图内位图英文
 | 超分权重 | `RealESRGAN_x4plus.pth` 67 MB 不随技能分发，首次超分或 `doctor.py --sr` 时依次从 GitHub / HF 镜像下载并校验；`PDF_ZH_SR_URL` 指定自己的镜像；离线放进 `scripts/models/` 或设 `PDF_ZH_SR_WEIGHTS`；ONNX 模型设 `PDF_ZH_SR_ONNX` 或放 `scripts/models/RealESRGAN_x4plus.onnx` |
 | 工作区 | 路径一律相对工作区；`content/_engine.py` 按 `PDF_TRANSLATE_ZH_HOME` → 创建时路径 → 常见技能目录找引擎，工作区可整体拷到别的机器重跑 |
 | 技能目录 | 引擎不往技能目录写任何东西（自检产物写临时目录），只读安装也能用 |
+| TypeSafe 图像判断 | 可选、默认关闭。只认环境变量 `PDF_ZH_TYPESAFE=1` 与 `TYPESAFE_API_KEY`（不读 config.json、不写文件、不进日志）；关闭时流水线入口不 import `tsjudge`，产物逐字节不变。离线自检 `tests/test_tsjudge_offline.py`，对照 `tests/typesafe_bench.py`（无密钥即跳过） |

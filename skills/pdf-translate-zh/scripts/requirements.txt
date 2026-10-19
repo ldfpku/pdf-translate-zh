@@ -11,4 +11,6 @@ scipy>=1.7
 #   torch>=1.13        Windows+NVIDIA 按 https://pytorch.org 装 CUDA 版；macOS 直接 pip（自带 MPS）；
 #                      其他机器 CPU 版：pip install torch --index-url https://download.pytorch.org/whl/cpu
 #   onnxruntime>=1.16  约 25 MB，配合 sr.py --export-onnx 导出的 ONNX 模型（CPU/CoreML/DirectML）
+# 可选：TypeSafe 图像判断（tsjudge.py）不需要额外包 —— 只用标准库 urllib + Pillow；
+#   启用靠环境变量 PDF_ZH_TYPESAFE=1 与用户自设的 TYPESAFE_API_KEY（见 references/typesafe.md）
 # 国内网络：pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
