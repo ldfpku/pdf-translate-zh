@@ -19,6 +19,12 @@
 - `SKILL.md` §1 新增「第 0.8 步：图像判断（可选）」；新分册 `references/typesafe.md`（何时开、怎么开、限制、费用、回退、实测表）；
   「数据合规」段补充开启后图片会发到 api.typesafe.ai。
 
+### 变更
+- `route.py` 定级判据（避坑 121、122）：幻灯片判据提到图纸判据之前（讲义满版照片不再判成图纸）；表单补「填写位 ≥ 8」
+  （带标签空白横线 + 下划线串 + 冒号后留白）。真实文档 122 页上 68 对 → 92 对；全库翻转 19 页目检 18 页正确。
+- `route.py --typesafe`：模型 confidence ≥ 0.8（`TS_OVERRIDE_CONF`）且与启发式不同时以模型为准（原判存 `heur_level`，
+  文档级 `ts_applied`），组合 111/122；低于阈值仍只记 `ts_disagree`。
+
 ### 说明
 - 上游文档（docs.typesafe.ai/images、/primitives/box）2026-10-20 核实；图像功能为实验状态，格式与准确度可能随版本变。
 - 实测对照（2026-10-20，仓库样本）：页面级别 TypeSafe 38/40、启发式 40/40；插图框文字标注 / 气泡 43/43；约 1.2k tok/框、3~4k tok/页；数字与读数见 `references/typesafe.md` §6。

@@ -61,16 +61,17 @@ macOS / Linux：`export TYPESAFE_API_KEY=…; export PDF_ZH_TYPESAFE=1`（写进
 
 | 接入点 | 原语 | 入口 | 输入 | 输出（都是**附加**，不改原判据） |
 |---|---|---|---|---|
-| 页面级别 | Choice（R / P / S / blank；blank 计作 R） | `route.py --typesafe` 或开关打开时 `translate_pdf.py` 自动 | 抽样页渲染 110 dpi 的页面图；criteria 为文字描述，可带示例页图（`tsjudge.page_level(png, {"R": [...], "P": [...]})`） | `route.json` 各行 `ts{level, confidence, probabilities, input_tokens, seconds}`，文档级 `ts_disagree`（分歧页）、`ts_usage` |
+| 页面级别 | Choice（R / P / S / blank；blank 计作 R） | `route.py --typesafe` 或开关打开时 `translate_pdf.py` 自动 | 抽样页渲染 110 dpi 的页面图；criteria 为文字描述，可带示例页图（`tsjudge.page_level(png, {"R": [...], "P": [...]})`） | 模型 confidence ≥ `route.TS_OVERRIDE_CONF`（0.8）且与启发式不同 → 该行 `level` 改为模型判断、原判存 `heur_level`、`ts_applied=True`；否则保持启发式。各行 `ts{level, confidence, probabilities, input_tokens, seconds}`，文档级 `ts_applied`、`ts_disagree`、`ts_usage` |
 | 插图：有无文字、逐框是文字标注 / 是件号气泡 | Noul ×（1 + 2×框数） | `figpipe.py detect`（开关打开时） | 超分后的整幅图 + 每个检测框外扩 60% 的裁片，一次请求最多 16 片 | `data/det_hints.json`（`det_boxes.json` 不动；**框号不变**） |
 | 件号气泡定环 | Noul 判存在 + Box | `figpipe.py apply` → `bubbles.redraw(locate=…)` | 以编号框为中心、四周各扩 4 倍框尺寸 + 40 px 的裁片 | **只在填洞 / 射线 / 模板三法都失败时**才问；Box 换算回图像像素后经 `bubbles.ring_by_bbox` 转成环几何，仍要过 `fit_quality` 与 `residue_check`；`bubble_report.json` 记 `method="bbox"` 与 `locate{present, confidence, …}` |
 | 表格区是不是真表格 | Noul | `tsjudge.py tables <pdf> [页号,…]` | `tablefix.regions()` 的每块区域渲染 2.5× | 只打印概率，供骨架 `build.py` 的「先确认 `regions()` 认对了表」这一步参考；`fix_pages` 不动 |
 
 **H 不是页面选项**：H 是「同一文档里 R 页与 P 页并存」的文档级属性，由代码汇总，模型只判单页。
 
-**为什么页面级别只对照不改判**：现有启发式的误判（`route.py` 顶部）是已知且有具体判据的；模型的准确度在本技能的文档类型上
-**尚未实测**（§6 为空表），且 Choice 的 confidence 只是概率分布的集中度，不是正确率。分歧页列出来给人目检 ——
-定级本来就是「建议不是判决」（再问三问：坐标有语义吗？格子要回填吗？删掉版式重排后信息有损吗？）。
+**页面级别为什么在 0.8 以上改判**：§6.1 的 122 页真实文档上，模型错的 20 页 confidence 中位 0.75、最高 0.96，对的中位 0.99；
+按 0.8 取模型、否则退回启发式，122 页对 111（启发式修过两处判据后单独 92、模型单独 102）。低于 0.8 的分歧页仍只列在
+`ts_disagree` 里给人目检 —— 定级本来就是「建议不是判决」（再问三问：坐标有语义吗？格子要回填吗？删掉版式重排后信息有损吗？）。
+阈值是在这 122 页上定的，换文档类型要重看 §6.1 的分布。
 
 **没有接的地方（证据不足，列出理由）**：
 
@@ -142,13 +143,17 @@ R 66 / P 40 / S 16。跑法：`tests/typesafe_realdoc.py <页清单.json>`（清
 
 | 判法 | 准确率 | R（66） | P（40） | S（16） | token/页 | 秒/页 |
 |---|---|---|---|---|---|---|
-| 启发式 `route.page_level` | 56%（68/122） | 44 | 24 | 0 | 0 | 毫秒 |
+| 启发式 `route.page_level`（1.1.2 判据） | 56%（68/122） | 44 | 24 | 0 | 0 | 毫秒 |
+| 启发式（1.2.0 判据：幻灯片先判、表单补填写位） | 75%（92/122） | 44 | 32 | 16 | 0 | 毫秒 |
 | TypeSafe Choice，只有文字描述 | **84%（102/122）** | 46 | **40** | **16** | 3,419 | 2.3 |
 | TypeSafe Choice，带 2 张示例页图 | 85%（104/122） | 48 | 40 | 16 | 10,652 | 3.1 |
-| 组合：模型 confidence ≥ 0.8 用模型，否则启发式 | **91%（111/122）** | — | — | — | 3,419 | 2.3 |
+| 组合：模型 confidence ≥ 0.8 用模型，否则启发式（新旧判据结果相同） | **91%（111/122）** | — | — | — | 3,419 | 2.3 |
 
 读数：
 
+- **1.2.0 判据修了两处**：幻灯片判据提到图纸判据之前（讲义 16 页全部认出，全库 79 页讲义 77 页改判 S，其他文档零波及）；
+  表单补「填写位 ≥ 8」（带标签空白横线 + 下划线串 + 冒号后留白：23 页表单认出 15 页，全库翻转 19 页经目检 18 页是表单、
+  1 页 ES20 第 33 页重量表误判）。仍漏：靠上方标题定位空白格的表单（定子尺寸报告）、横开装配汇总表、整页曲线图。
 - **启发式的三类漏判在真实文档里都出现了**：填写表单 16 页全判 R（表单用的是横线和大格，不是勾选框，`cbs` 判据失效）；
   PPT 讲义 16 页全判 P（照片占 ≥ 70% 先触发了图纸判据，S 判据排在后面没机会）；带线图/渲染图的步骤页、
   产品数据页、文字转曲线的简介共 22 页判 P。

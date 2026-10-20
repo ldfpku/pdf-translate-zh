@@ -140,6 +140,26 @@ def t_default_unchanged():
     step("route：占位时每行有 ts、文档级有 ts_usage/ts_disagree",
          all("ts" in r and "level" in r["ts"] for r in b["rows"]) and "ts_usage" in b and "ts_disagree" in b
          and b["ts_model"] == tsjudge.MODEL)
+    # 置信度覆盖：进程内注入占位答案（conf 0.95 判 S）→ 每行 level 应改为 S、heur_level 保留原判
+    import route
+    saved = tsjudge._mock_handler
+
+    def hi_conf(body):
+        out = {}
+        for qid, q in body["questions"].items():
+            keys = list(q["criteria"].keys())
+            out[qid] = {"type": "choice", "choice": "S", "probabilities": {k: (0.95 if k == "S" else 0.05 / (len(keys) - 1)) for k in keys},
+                        "confidence": 0.95}
+        return out
+    tsjudge._mock_handler = hi_conf
+    os.environ["PDF_ZH_TYPESAFE"], os.environ["PDF_ZH_TYPESAFE_MOCK"] = "1", "1"
+    try:
+        rr = route.classify(pdf, 3, typesafe=True)
+    finally:
+        tsjudge._mock_handler = saved
+    step("route：模型 conf ≥ %.2f 时覆盖启发式（level=S、heur_level 保留、ts_applied 列出）" % route.TS_OVERRIDE_CONF,
+         all(r["level"] == "S" and r.get("heur_level") in ("R", "P") and r.get("ts_applied") for r in rr["rows"])
+         and rr["ts_applied"] == [r["page"] for r in rr["rows"]] and rr["level"] == "S")
     # route.py 关闭时不得 import tsjudge
     rc, o = _run(["-c", "import sys; sys.path.insert(0, %r); import route; route.classify(%r); "
                   "print('tsjudge' in sys.modules)" % (SCRIPTS, pdf)], base)

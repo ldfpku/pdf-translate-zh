@@ -14,7 +14,7 @@
 | `bootstrap.py` | **环境全自动**：入口脚本自动调用，缺包装进私有目录、CFF 中文字体自动转 TrueType（Linux Noto CJK / macOS 苹方）、超分后端按需自动装；`python3 bootstrap.py [--sr]` 一次配齐 |
 | `doctor.py` | 只报告的体检：依赖、中文字体解析、缓存、超分权重逐项自检（`--selftest` 引擎冒烟，`--install` 补装必需包，`--fonts` 把 Noto CJK 转 TrueType） |
 | `translate_pdf.py` | **每份新文档的入口**：定级（写 `data/route.json`）+ 素材提取 + 生成内容层骨架。R/H 级：`content/_engine.py build.py content.py terms.py`；P/S 级：`build.py`（叠印 + 六道关，`--dump` 导出待译单元）+ `<名>_dict.py` |
-| `route.py` | 单独定级：逐页判 R/H/P/S（V2 三级 + 幻灯片），给出 P 级页清单 |
+| `route.py` | 单独定级：逐页判 R/H/P/S（幻灯片先判、图纸、表单含填写位判据），给出 P 级页清单；`--typesafe` 时模型 confidence ≥ 0.8 改判 |
 | `fontkit.py` | 跨平台字体解析（所有脚本取字体的唯一入口）；`save_subset()` 叠印成品子集化存盘；`convert_system_cjk()` CFF→TrueType；`python fontkit.py` 打印本机解析结果 |
 | `rebuild_all.py` / `build_all.py` | 全量重建 / 回归：`--root` 或环境变量 `PDF_ZH_PROJECTS` 指定项目根目录 |
 | `sweep.py` | 全量成品体检（第六道关：保留项失踪 / 中文重叠 / 缺字） |

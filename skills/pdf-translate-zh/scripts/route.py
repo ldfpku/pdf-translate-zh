@@ -5,21 +5,29 @@ V2 公理：忠实的对象是**内容与表达方式**，不是英文版的物�
 默认是 **R 语义重排**（抽结构 → 译 → 按中文版式流式排版），只有「版面本身
 就是内容」的页才保位叠印：
 
-    P 版面保持   工程图纸（图面 ≥ 70% 或 路径 ≥ 3000/页）、可填写表单（勾选框 ≥ 15/页）
-    S 幻灯片     横开 + 大字号（主导字号 ≥ 18pt）的 PPT 导出页：整页保位，页内列表整列重排
+    S 幻灯片     横开 + 大字号（主导字号 ≥ 18pt；或 ≥ 12pt 且字少 < 500、图面 ≥ 50%）的 PPT 导出页：
+                 整页保位，页内列表整列重排。**S 判据排在 P 之前**：讲义页满版照片会先触发图纸判据
+                 （2026-10-20 实测 16 页讲义全判成图纸，references/typesafe.md §6.1）
+    P 版面保持   工程图纸（图面 ≥ 70% 或 路径 ≥ 3000/页）、可填写表单（勾选框 ≥ 15/页，
+                 或 填写位 ≥ 8：带标签的空白横线 + 下划线串 + 冒号标签后留白）
     R 语义重排   其余散文 / 步骤 / 普通表格页（默认）
     H 混合       同一文档里 R 与 P 页并存 → 逐页分流
 
 ⚠ V1 的「页数 ≥ 20 → 叠印」判据**已作废**：重排不追坐标，成本与页数脱钩。
 ⚠ 不要用「路径数/字符数」这类比值，也不要拿「扁长矩形」当填写横线 ——
   表格单元格边框同样是扁长矩形，实测会把 8 份纯文字档全判成表单。
+  「填写位」判据因此只认**线上线下都没有字、且左端有标签词**的横线（表格行线上下必有字）；
+  实测 23 页表单命中 15、非表单页零误判（但空白格靠标题在上方的表单、横开装配汇总表仍漏）。
 
 用法：
     python route.py <file.pdf> [more.pdf ...] [--json out.json] [--max-pages 80] [--typesafe]
 
 --typesafe（或环境变量 PDF_ZH_TYPESAFE=1 且设有 TYPESAFE_API_KEY）：另把每个抽样页渲染成图，
-交给 TypeSafe 的 Jev 模型做一次 Choice（R/P/S/空白），结果写进各行的 `ts` 与文档级 `ts_disagree`，
-**只记录与对照，不改判级**（启发式仍是 `level`）。关闭时本脚本不会 import tsjudge。详见 references/typesafe.md。
+交给 TypeSafe 的 Jev 模型做一次 Choice（R/P/S/空白），结果写进各行的 `ts`；模型 confidence ≥ TS_OVERRIDE_CONF
+（0.8）且与启发式不同时**以模型为准**（该行 `level` 改写，原判保留在 `heur_level`，`ts_applied=True`），
+否则仍用启发式。依据：2026-10-20 真实文档 122 页，启发式 68 对、模型 102 对、按 0.8 组合 111 对
+（references/typesafe.md §6.1）。文档级另记 `ts_disagree`、`ts_applied`、`ts_usage`。
+关闭时本脚本不会 import tsjudge。
 """
 import os as _os, sys as _sys  # noqa: E401
 _sys.dont_write_bytecode = True   # 不往（可能只读的）技能目录写 __pycache__
@@ -38,6 +46,7 @@ except ImportError:
     import fitz
 
 MAX_PAGES = 80       # 超长文档均匀抽样，够用且快
+TS_OVERRIDE_CONF = 0.8   # --typesafe 时模型置信度达到此值即覆盖启发式（2026-10-20 在 122 页上定的；低于它退回启发式）
 
 
 def page_metrics(pg):
@@ -70,16 +79,49 @@ def page_metrics(pg):
     dom = sizes.most_common(1)[0][0] if sizes else 0
     landscape = pg.rect.width > pg.rect.height
     return dict(fig=fig, paths=len(drs), cbs=cbs, chars=chars, dom=dom,
-                landscape=landscape)
+                landscape=landscape, form=form_slots(pg))
+
+
+def form_slots(pg):
+    """填写位计数 = 带标签的空白横线 + 下划线串 `____` + 冒号标签后留白。
+
+    空白横线：线段 25~300pt（经 dwg_bom.segments 合并共线短段），线上、线下 11pt 内都没有字
+    （表格行线上下必有字，故不会把表格当表单），且左端 40pt 内同一行有词（标签）。
+    2026-10-20 在 23 页真实表单上命中 15 页、非表单页零误判；靠上方标题定位的空白格仍认不出。
+    """
+    import re
+    from dwg_bom import segments
+    words = pg.get_text("words")
+    wr = [fitz.Rect(w[:4]) for w in words]
+
+    def any_in(r):
+        return any(x.intersects(r) for x in wr)
+    try:
+        H, _V = segments(pg, min_h=25.0, min_v=3.0)
+    except Exception:
+        H = []
+    nlab = 0
+    for y, x0, x1 in H:
+        if x1 - x0 > 300:
+            continue
+        if any_in(fitz.Rect(x0 + 2, y - 11, x1 - 2, y - 0.5)) or any_in(fitz.Rect(x0 + 2, y + 0.5, x1 - 2, y + 11)):
+            continue
+        if any_in(fitz.Rect(x0 - 40, y - 10, x0 - 0.5, y + 2)):
+            nlab += 1
+    us = sum(1 for w in words if re.fullmatch(r"_{4,}", w[4]))
+    cb = sum(1 for w in words
+             if w[4].endswith(":") and not any_in(fitz.Rect(w[2] + 1, w[1], w[2] + 120, w[3])))
+    return nlab + us + cb
 
 
 def page_level(m):
+    # 幻灯片先于图纸：讲义页的满版照片会触发「图面 ≥ 70%」
+    if m["landscape"] and (m["dom"] >= 18 or (m["dom"] >= 12 and m["chars"] < 500 and m["fig"] >= 50)):
+        return "S", "幻灯片"
     if m["fig"] >= 70 or m["paths"] >= 3000:
         return "P", "图纸"
-    if m["cbs"] >= 15:
+    if m["cbs"] >= 15 or m.get("form", 0) >= 8:
         return "P", "表单"
-    if m["landscape"] and m["dom"] >= 18:
-        return "S", "幻灯片"
     if m["chars"] < 30 and m["fig"] < 20:
         return "R", "空白/分隔页"
     return "R", "散文/步骤/表格"
@@ -119,6 +161,12 @@ def classify(path, max_pages=MAX_PAGES, typesafe=None):
         row = dict(page=i + 1, level=lv, kind=why, **m)
         if ts is not None:
             _ts_page(ts, d[i], row)
+            t = row["ts"]
+            if "level" in t:
+                tl = t["level"] if t["level"] != "blank" else "R"
+                if tl != lv and t["confidence"] >= TS_OVERRIDE_CONF:
+                    row["heur_level"], row["level"], row["ts_applied"] = lv, tl, True
+                    row["kind"] = "TypeSafe %s（conf %.2f）覆盖启发式 %s/%s" % (t["level"], t["confidence"], lv, why)
         rows.append(row)
     d.close()
     cnt = Counter(r["level"] for r in rows)
@@ -140,9 +188,12 @@ def classify(path, max_pages=MAX_PAGES, typesafe=None):
     if ts is not None:
         # 对照记录：模型判「blank」视同 R（空白页本就走重排）；分歧页只列出，判级不改
         ok = [r for r in rows if "ts" in r and "level" in r["ts"]]
-        dis = [r["page"] for r in ok if (r["ts"]["level"] if r["ts"]["level"] != "blank" else "R") != r["level"]]
+        dis = [r["page"] for r in ok
+               if (r["ts"]["level"] if r["ts"]["level"] != "blank" else "R") != r.get("heur_level", r["level"])]
         res["ts_model"] = ts.MODEL
+        res["ts_override_conf"] = TS_OVERRIDE_CONF
         res["ts_disagree"] = dis
+        res["ts_applied"] = [r["page"] for r in rows if r.get("ts_applied")]
         res["ts_errors"] = [r["page"] for r in rows if "ts" in r and "error" in r["ts"]]
         res["ts_usage"] = dict(pages=len(ok), input_tokens=sum(r["ts"]["input_tokens"] for r in ok),
                                seconds=round(sum(r["ts"]["seconds"] for r in ok), 1))
@@ -186,9 +237,9 @@ def main(argv):
             print("    S 级页：", r["s_pages"][:40])
         if "ts_usage" in r:
             u = r["ts_usage"]
-            print("    TypeSafe（%s，只对照不改判）：%d 页，分歧页 %s，出错页 %s，共 %d tok，%.1f s"
-                  % (r["ts_model"], u["pages"], r["ts_disagree"] or "无", r["ts_errors"] or "无",
-                     u["input_tokens"], u["seconds"]))
+            print("    TypeSafe（%s）：%d 页，分歧页 %s，其中 conf ≥ %.2f 已按模型改判 %s，出错页 %s，共 %d tok，%.1f s"
+                  % (r["ts_model"], u["pages"], r["ts_disagree"] or "无", r["ts_override_conf"],
+                     r["ts_applied"] or "无", r["ts_errors"] or "无", u["input_tokens"], u["seconds"]))
     if out_json:
         with open(out_json, "w", encoding="utf-8") as fh:
             json.dump(res, fh, ensure_ascii=False, indent=1)
