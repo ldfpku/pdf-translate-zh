@@ -140,6 +140,11 @@ def fit_cols(data, colw, S, size="tbl", hdr_rows=1, pad=3.2, grow=0.0):
             w = atom_width(zh(cell), st.fontName, st.fontSize)
             if w:
                 floor[ci] = max(floor[ci], w + 2 * pad + 0.6)
+            elif cell.strip():
+                floor[ci] = max(floor[ci], 2 * pad + 2.0)
+    for ci in range(ncol):
+        if floor[ci] < 2 * pad + 2.0:
+            floor[ci] = max(floor[ci], 2 * pad + 2.0)
     if not any(floor):
         return colw
 
@@ -152,7 +157,7 @@ def fit_cols(data, colw, S, size="tbl", hdr_rows=1, pad=3.2, grow=0.0):
         base = [max(c - floor[i], 0.0) for i, c in enumerate(colw)]
         bt = sum(base) or 1.0
         return [floor[i] + free * base[i] / bt for i in range(ncol)]
-    return [f * tot / need for f in floor]
+    return [max(2 * pad + 1.0, f * tot / need) for f in floor]
 
 
 def grid_table(data, colw, S, hdr_rows=1, align=None, hdr_bg=TBL_HDR,

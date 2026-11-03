@@ -555,7 +555,8 @@ def check_fig_pages(src_pdf, work):
     bad, n = [], 0
     with fitz.open(src_pdf) as doc:
         for m in figs:
-            path = os.path.join(work, "figures", m["file"])
+            cpath = os.path.join(work, "figures", "_clean", m["file"])
+            path = cpath if os.path.exists(cpath) else os.path.join(work, "figures", m["file"])
             if not os.path.exists(path):
                 continue
             b = fitz.Rect(m["bbox"])
