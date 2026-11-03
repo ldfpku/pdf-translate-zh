@@ -188,7 +188,7 @@ def overlay(png_path, hits, zh_map, font_path=DEFAULT_FONT, pad=1.0,
 
 
 def detect_raster_labels(png_path, thr=140, min_area=6, max_h=44,
-                         line_gap=3, word_gap=40, para_gap=14):
+                         line_gap=3, word_gap=40, para_gap=14, ink="min"):
     """检测**烧死在位图像素里**的文字块，返回像素 bbox 列表。
 
     位图内的标注取不到文本层（`figcrop` 只能拿到矢量文本），只能按像素找：
@@ -201,7 +201,14 @@ def detect_raster_labels(png_path, thr=140, min_area=6, max_h=44,
     import numpy as np
     from scipy import ndimage
 
-    a = np.array(Image.open(png_path).convert("L"))
+    im = Image.open(png_path).convert("RGB")
+    rgb = np.asarray(im)
+    if ink == "min":
+        a = rgb.min(axis=2)
+    elif ink == "luma":
+        a = np.asarray(im.convert("L"))
+    else:
+        raise ValueError("ink must be 'min' or 'luma'")
     lbl, n = ndimage.label(a < thr, structure=np.ones((3, 3)))
     boxes = []
     for sl in ndimage.find_objects(lbl):

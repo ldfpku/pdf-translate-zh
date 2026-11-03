@@ -89,9 +89,10 @@ vectext.overlay(doc[pi], RASTER_ZH[pi])          # 图内位图英文
 | `appendix.py` | 附录 A《译校勘误说明》甲/乙/丙 + 附录 B《中英术语对照表》 |
 | `preview.py` | 逐页出图 + 整册缩览拼贴（目检用） |
 | `sr.py` | **插图超分**：Real-ESRGAN x4plus，按有效 dpi 筛选（<150 才处理）；后端 torch（CUDA/MPS/CPU）→ onnxruntime（`--export-onnx` 导出的模型）→ Lanczos 兜底；分块推理控内存；权重多源下载 + SHA-256；`--fetch` 预下载；处置方式写 `sr_report.json` |
-| `tightbox.py` | 检测框**收紧到文字本体**：引线/箭头头/噪点/单字母/彩底五条规则，返回行高供定字号 |
-| `bubbles.py` | **件号气泡**：填洞/射线/模板三法求环心 → 擦旧环补引线 → 重绘环与 Arial Bold 编号 → 旧环残留判据 → 放大拼贴 |
-| `figpipe.py` | **R 级位图插图一条龙**：`extract`（按 xref 提原图、SMask 合成、记有效 dpi → `data/images.json`）→（`sr.py`）→ `detect`（带框号核查图）→ `apply`（按内容层 `labels_zh.py` 的框号译名回叠、`BUBBLES` 气泡重绘）→ `sweep` 漏译归零 → `sheet` 气泡拼贴 |
+| `tightbox.py` | legacy 回叠的检测框收紧：引线/箭头头/噪点/单字母/彩底规则，供旧布局使用 |
+| `figfix.py` | **位图标注替换**：最小通道找墨、文字本体收框、穿框线条保护、白纸净化、字高对齐与三道 QA 判据 |
+| `bubbles.py` | **件号气泡**：默认 KEEP；明确列入 `BUBBLES` 时才按几何定位、重绘并检查旧环残留 |
+| `figpipe.py` | **R 级位图插图一条龙**：`extract`（按 xref 提原图、SMask 合成、记有效 dpi → `data/images.json`）→（`sr.py`）→ `detect`（最小通道 + 带框号核查图）→ `apply`（默认 figfix；`LABEL_STYLE="legacy"` 可回退）→ `check`（残留 / 误擦 / 压线）→ `sweep` 漏译归零 → `sheet` 气泡拼贴 |
 | `uniq_desc.py` | 列出「零件描述」的唯一串，建规则化译名用 |
 | `tsjudge.py` | **TypeSafe 图像判断（可选，默认关闭）**：`PDF_ZH_TYPESAFE=1` + 用户自设 `TYPESAFE_API_KEY` 才启用；页面级别 Choice 对照（`route --typesafe`）、插图逐框 Noul 提示（`figpipe detect` → `det_hints.json`）、气泡 Noul+Box 定环兜底（`figpipe apply`）、表格区 Noul（`tsjudge tables`）；模型 jev-1.14.0，图像预处理 `prepare_image()`，只用标准库联网；见 `references/typesafe.md` |
 | `selftest.py` | 引擎冒烟自检：`zh()` 单测、块 DSL 参数位置、装配与几何 |
@@ -119,7 +120,7 @@ vectext.overlay(doc[pi], RASTER_ZH[pi])          # 图内位图英文
 | 项 | 说明 |
 |---|---|
 | 必需包 | PyMuPDF（`import pymupdf`，旧版退回 `fitz`）、reportlab、Pillow、numpy、fonttools |
-| 可选包 | scipy（件号气泡）；插图超分二选一：torch（macOS 自带 MPS；Windows+NVIDIA 装 CUDA 版）或 onnxruntime + ONNX 模型；都没有时 Lanczos 兜底 |
+| 可选包 | scipy（件号气泡）；插图超分二选一：torch（macOS 自带 MPS；Windows+NVIDIA 装 CUDA 版，bootstrap 按显卡算力与驱动挑 cuXXX 轮子并实算验证）或 onnxruntime + ONNX 模型；都没有时 Lanczos 兜底 |
 | Python 命令 | macOS / Linux 用 `python3`，Windows 用 `py`；系统 Python 禁止 pip（PEP 668，如 macOS Homebrew）不受影响：依赖一律 `pip --target` 装进技能私有目录，`doctor.py` 的修复命令也指向 `bootstrap.py` |
 | 中文字体 | `fontkit` 按「环境变量 → 技能 `fonts/` → 系统字体 → PyMuPDF 内置 Droid Sans Fallback」解析。Windows 仍优先微软雅黑；macOS 取苹方（CFF，首次自动转 TrueType，补 ◦）、转换前退回华文黑体；Linux 取 Noto/思源/文泉驿。ReportLab 只认 TrueType 轮廓，CFF 字体自动跳过 |
 | 固定字体 | 环境变量 `PDF_ZH_FONT`、`PDF_ZH_FONT_BOLD`（值为字体文件路径，TTC 可写 `路径#序号`），或把字体文件放进技能根目录的 `fonts/` —— 各机器产出一致 |

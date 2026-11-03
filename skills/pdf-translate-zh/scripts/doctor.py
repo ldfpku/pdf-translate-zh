@@ -120,15 +120,21 @@ def main(argv):
         if m is None:
             say("WARN", f"未装 {pkg}（可选：{why}）", boot_fix)
         elif mod == "torch":
-            dev = "CPU"
+            dev, bad = "CPU", ""
             try:
                 if m.cuda.is_available():
-                    dev = "CUDA " + m.cuda.get_device_name(0)
+                    import sr as _sr                  # 真跑一次小卷积：is_available() 为真也可能缺本机显卡的内核
+                    ok, why = _sr.cuda_usable()
+                    dev, bad = ("CUDA " + why, "") if ok else ("CPU", why)
                 elif getattr(m.backends, "mps", None) and m.backends.mps.is_available():
                     dev = "Apple MPS"
-            except Exception:
-                pass
-            say("OK", f"torch {m.__version__}（超分设备：{dev}）")
+            except Exception as e:
+                bad = str(e).splitlines()[0] if str(e) else type(e).__name__
+            if bad:
+                say("WARN", f"torch {m.__version__} 用不了显卡：{bad}（超分退到 CPU，约慢 10 倍）",
+                    f"{BOOT} --sr   （按显卡算力与驱动自动换装匹配的 CUDA 版 torch）")
+            else:
+                say("OK", f"torch {m.__version__}（超分设备：{dev}）")
         else:
             say("OK", f"{pkg} {getattr(m, '__version__', '')}")
     fz = _import("pymupdf", "fitz")

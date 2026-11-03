@@ -1,23 +1,25 @@
 # -*- coding: utf-8 -*-
-"""位图插图流水线（R 级重排用）：提取原图 → 超分 → 检测图内文字 → 回叠中文 + 件号气泡重绘 → 漏译排查。
+"""位图插图流水线（R 级重排用）：提取原图 → 超分 → 检测图内文字 → 回叠中文 → 核查与漏译排查。
 
 「机器给框、人读字」：坐标全部来自检测，内容层只按**框号**给译名，禁止手估像素框（figures.md §3、§16、§17）。
 
     python figpipe.py extract <源.pdf> <工作区>      提取嵌入位图（SMask 合成白底）→ figures_src/xNN.png、data/images.json
     python sr.py <工作区>/figures_src <工作区>/figures_sr --places <工作区>/data/images.json --min-dpi 150
     python figpipe.py detect  <工作区> [--src figures_sr]   逐幅检测文字块 → data/det_boxes.json、qa/det_*.png（带框号）
-    python figpipe.py apply   <工作区> <labels.py>          按 LABELS 回叠中文、按 BUBBLES 重绘气泡 → figures/
+    python figpipe.py apply   <工作区> <labels.py>          按 LABELS 回叠中文；仅按 BUBBLES 显式重绘气泡 → figures/
+    python figpipe.py check   <工作区> <labels.py>          位图标注三道核查：残留 / 误擦 / 压线
     python figpipe.py sweep   <工作区> <labels.py>          成品图漏译排查：检测到的文字块 − 已处置区 → qa/sweep_*.png
     python figpipe.py sheet   <工作区> <labels.py>          全部件号气泡放大拼贴 → qa/bubbles_*.png（交付前目检）
 
 labels.py（内容层）：
     from figpipe import KEEP, SKIP
-    LABELS = {"x12": {0: "剖视图 A-A", 1: KEEP, 2: SKIP, ("opt", 0): {"bold": True, "anchor": "left", "union": [3]}}}
+    LABELS = {"x12": {0: {"zh": "剖视图 A-A", "bold": True, "anchor": "R"}, 1: KEEP, 2: SKIP}}
     BUBBLES = {"x12": {1: "01", 4: "02"}}          # 框号 → 判读后的件号（与步骤文字、零件表对账）
     BUBBLE_LIKE = {"x12": {7: 1}}                  # 可选：几何求不出时参照同图另一气泡的尺寸
-    FONT_SCALE = 0.98                              # 可选：中文字号 = 原文行高中位数 × 此值
+    LABEL_STYLE = "figfix"                         # "legacy" 可复现旧版铺底回叠
+    SIZE_PX = {"x12": 36}                          # 可选：逐图覆盖 figfix 的字高对齐字号
 KEEP = 保留原文（件号气泡、商标、尺寸代号）；SKIP = 碎屑/非文字（引线、零件轮廓）；**未列出的框视为漏译并报错**。
-("opt", i) 选项：union=[并入的框号]、bold、anchor(left|right|center)、px（字号）、dx/dy、grow（铺底外扩）。
+figfix 字典选项：zh、union、box、anchor(L/R/D/U/C/LR 或 "R:x,y")、title、bold、fg、align、rot、wrap、size_px。
 """
 import os as _os, sys as _sys  # noqa: E401
 _sys.dont_write_bytecode = True
@@ -35,6 +37,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 import bubbles
 import figlabel
+import figfix
 import fontkit
 import tightbox
 
@@ -57,7 +60,8 @@ def _load_labels(path):
     sys.modules.setdefault("figpipe", sys.modules[__name__])
     spec.loader.exec_module(mod)
     return (getattr(mod, "LABELS", {}), getattr(mod, "BUBBLES", {}), getattr(mod, "BUBBLE_LIKE", {}),
-            getattr(mod, "FONT_SCALE", 0.98))
+            getattr(mod, "FONT_SCALE", 0.98), getattr(mod, "LABEL_STYLE", "figfix"),
+            getattr(mod, "SIZE_PX", {}))
 
 
 # ---------------------------------------------------------------- 提取
@@ -124,7 +128,8 @@ def detect(work, src="figures_sr", stems=None):
         p = os.path.join(sdir, f)
         im = Image.open(p).convert("RGB")
         kw, (mw, mh) = _det_kw(im)
-        bs = [b for b in figlabel.detect_raster_labels(p, **kw) if b[2] - b[0] >= mw and b[3] - b[1] >= mh]
+        bs = [b for b in figlabel.detect_raster_labels(p, ink="min", **kw)
+              if b[2] - b[0] >= mw and b[3] - b[1] >= mh]
         boxes[stem] = [list(map(int, b)) for b in bs]
         d = ImageDraw.Draw(im)
         for i, b in enumerate(bs):
@@ -179,7 +184,7 @@ def _det(work):
 
 
 # ---------------------------------------------------------------- 回叠
-def apply(work, LABELS, BUBBLES=None, LIKE=None, font_scale=0.98):
+def _apply_legacy(work, LABELS, BUBBLES=None, LIKE=None, font_scale=0.98):
     """并框 → tighten 收紧到文字本体 → 采样底色铺底（两趟：先铺完再写字）→ 同图字号按原文行高中位数统一
     → 按锚点写中文 → 件号气泡按 BUBBLES 在原环心重绘 + 残留判据。大图另存 JPEG q92 4:4:4。"""
     BUBBLES, LIKE = BUBBLES or {}, LIKE or {}
@@ -268,6 +273,110 @@ def apply(work, LABELS, BUBBLES=None, LIKE=None, font_scale=0.98):
     return errors
 
 
+def _apply_figfix(work, LABELS, BUBBLES=None, LIKE=None, SIZE_PX=None):
+    BUBBLES, LIKE, SIZE_PX = BUBBLES or {}, LIKE or {}, SIZE_PX or {}
+    P = _paths(work)
+    sdir, boxes = _det(work)
+    os.makedirs(P["out"], exist_ok=True)
+    os.makedirs(os.path.join(P["qa"], "erase"), exist_ok=True)
+    errors, covered, reports = [], {}, {}
+    for f in sorted(os.listdir(sdir)):
+        if not f.endswith(".png") or f.endswith("_rgba.png"):
+            continue
+        stem = f[:-4]
+        source = Image.open(os.path.join(sdir, f)).convert("RGB")
+        im = source.copy()
+        bs, lab = boxes.get(stem, []), LABELS.get(stem, {})
+        handled = set()
+        labels = {}
+        for i, value in lab.items():
+            if not isinstance(i, int):
+                continue
+            handled.add(i)
+            if isinstance(value, dict):
+                spec = dict(value)
+            elif value in (KEEP, SKIP, None):
+                continue
+            else:
+                spec = {"zh": value}
+            extra = lab.get(("opt", i), {})
+            if isinstance(extra, dict):
+                spec.update(extra)
+            for j in spec.get("union", []):
+                handled.add(j)
+            if "px" in spec and "size_px" not in spec:
+                spec["size_px"] = spec.pop("px")
+            labels[i] = spec
+        unlisted = sorted(set(range(len(bs))) - handled)
+        if unlisted:
+            errors.append((stem, "未处置框", unlisted))
+        erased_path = os.path.join(P["qa"], "erase", f)
+        size = SIZE_PX.get(stem)
+        im, report = figfix.apply_labels(
+            source, bs, labels,
+            {"font_path": fontkit.find("zh"), "size_px": size if isinstance(size, int) else None,
+             "erase_path": erased_path},
+        )
+        cov = list(report["erase_boxes"])
+        for i, value in lab.items():
+            if isinstance(i, int) and value in (KEEP, SKIP):
+                cov.append(bs[i])
+        mapping = BUBBLES.get(stem, {})
+        for i in mapping:
+            if lab.get(i) != KEEP:
+                errors.append((stem, "气泡框须标 KEEP", i))
+        geos, bcov, bad = bubbles.apply_image(
+            im, bs, {i: t for i, t in mapping.items() if lab.get(i) == KEEP},
+            LIKE.get(stem, {}),
+        )
+        cov.extend(list(r) for r in bcov)
+        errors.extend((stem, "气泡") + tuple(b) for b in bad)
+        covered[stem] = cov
+        reports[stem] = {k: report[k] for k in ("erase_boxes", "text_boxes", "leaders")}
+        im.save(os.path.join(P["out"], f))
+        if im.width >= 1200:
+            im.save(os.path.join(P["out"], stem + ".jpg"), quality=92, subsampling=0, optimize=True)
+    for name, obj in (("covered", covered), ("figfix_qa", reports)):
+        with open(os.path.join(P["data"], name + ".json"), "w", encoding="utf-8") as stream:
+            json.dump(obj, stream, ensure_ascii=False, indent=1)
+    return errors
+
+
+def apply(work, LABELS, BUBBLES=None, LIKE=None, font_scale=0.98,
+          label_style="figfix", SIZE_PX=None):
+    if label_style == "legacy":
+        return _apply_legacy(work, LABELS, BUBBLES, LIKE, font_scale)
+    if label_style != "figfix":
+        raise ValueError("LABEL_STYLE must be 'figfix' or 'legacy'")
+    return _apply_figfix(work, LABELS, BUBBLES, LIKE, SIZE_PX)
+
+
+def check(work):
+    P = _paths(work)
+    sdir, _boxes = _det(work)
+    report_path = os.path.join(P["data"], "figfix_qa.json")
+    if not os.path.exists(report_path):
+        raise FileNotFoundError("figfix QA data is missing; run figpipe.py apply first")
+    with open(report_path, encoding="utf-8") as stream:
+        reports = json.load(stream)
+    failures = []
+    for stem, data in reports.items():
+        src_path = os.path.join(sdir, stem + ".png")
+        final_path = os.path.join(P["out"], stem + ".png")
+        erase_path = os.path.join(P["qa"], "erase", stem + ".png")
+        if not all(os.path.exists(p) for p in (src_path, final_path, erase_path)):
+            raise FileNotFoundError("missing source, final, or erase image for %s" % stem)
+        source, final, erased = (Image.open(p).convert("RGB") for p in (src_path, final_path, erase_path))
+        residual = figfix.check_residual(source, erased, data["erase_boxes"])
+        lost = figfix.check_lost(source, final, data["erase_boxes"], data["text_boxes"])
+        overlap = figfix.check_overlap(erased, data["text_boxes"])
+        print("  %s: 残留 %d / 误擦 %d / 压线 %d" %
+              (stem, len(residual), len(lost), len(overlap)))
+        failures.extend((stem, name, items) for name, items in
+                        (("残留", residual), ("误擦", lost), ("压线", overlap)) if items)
+    return failures
+
+
 def sweep(work, LABELS):
     """成品图上重新检测；落在已处置区（含 KEEP/SKIP 框）之外的文字块即疑似漏译。"""
     P = _paths(work)
@@ -311,12 +420,17 @@ def main():
         src = sys.argv[sys.argv.index("--src") + 1] if "--src" in sys.argv else "figures_sr"
         detect(work, src)
         return 0
-    LABELS, BUBBLES, LIKE, FS = _load_labels(sys.argv[3])
+    LABELS, BUBBLES, LIKE, FS, STYLE, SIZE_PX = _load_labels(sys.argv[3])
     if cmd == "apply":
-        errs = apply(work, LABELS, BUBBLES, LIKE, font_scale=FS)
+        errs = apply(work, LABELS, BUBBLES, LIKE, font_scale=FS,
+                     label_style=STYLE, SIZE_PX=SIZE_PX)
         for e in errs:
             print("  ERR", e)
         print("回叠完成：%s" % ("无错误" if not errs else "%d 处错误" % len(errs)))
+        return 1 if errs else 0
+    if cmd == "check":
+        errs = check(work)
+        print("三道核查：%s" % ("全部通过" if not errs else "%d 处异常" % len(errs)))
         return 1 if errs else 0
     if cmd == "sweep":
         left = sweep(work, LABELS)

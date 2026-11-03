@@ -2,6 +2,20 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.3.0] - 2026-11-03
+
+### 新增
+- **`figfix.py` 位图标注替换**：按原文大写 / 数字字高对齐中文字号，支持白纸与浅彩底净化、穿框线条保护、
+  引线端点定位、文字颜色采样及残留 / 误擦 / 压线三道核查。`figpipe.py` 默认使用 figfix，仍可切回 legacy。
+- `figpipe.py check` 子命令输出擦除中间图及核查报告；新增合成图离线测试覆盖算法边界与 legacy 兼容路径。
+- CUDA 引导程序基于当前运行机器选择 PyTorch 轮子，并实测设备后再采用 GPU、失败时回退 CPU。
+- TypeSafe 新增 `read_check` 读字复核与 `choose_label` 闭集选词流程，含阈值与离线请求测试。
+
+### 变更
+- `figlabel` 默认采用 RGB 最小通道检测，减少橙色、青色等标注漏检；`luma` 保留作对照。
+- 件号气泡默认 KEEP；译名由用户内容层字典提供，不内置领域术语表。
+- 更新插图处理流程、QA 闸门与排坑说明；CUDA、TypeSafe 和 figfix 测试接入 smoke test。
+
 ## [1.2.0] - 2026-10-20
 
 ### 新增

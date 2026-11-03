@@ -123,6 +123,15 @@ def main():
     step("引擎自检 selftest.py", rc == 0, "%.0fs" % dt)
     if rc:
         report("selftest", log, 2000)
+    for script, title in (
+        ("test_bootstrap_offline.py", "CUDA 轮子选择离线测试"),
+        ("test_tsjudge_offline.py", "TypeSafe 离线测试"),
+        ("test_figfix_offline.py", "位图标注替换离线测试"),
+    ):
+        rc, log, dt = run([os.path.join(ROOT, "tests", script)])
+        step(title, rc == 0, "%.0fs" % dt)
+        if rc:
+            report(script, log)
     try:
         import fontkit
         src = ["%s: %s" % (r, fontkit.find(r, reportlab=True, required=False)) for r in ("zh", "zh-bold")]

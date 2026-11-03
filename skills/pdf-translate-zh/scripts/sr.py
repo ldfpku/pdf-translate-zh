@@ -208,12 +208,45 @@ def build_net():
     return RRDBNet()
 
 
+_CUDA_OK = []
+
+
+def cuda_usable():
+    """(能否用, 原因)。torch.cuda.is_available() 为 True 也可能缺本机显卡的计算内核
+    （torch 编译时没列入本机算力的 sm_XX：第一次运算才报 no kernel image）→ 真跑一次小卷积为准。"""
+    if _CUDA_OK:
+        return _CUDA_OK[0]
+    torch = _torch()
+    res = (False, "torch 是 CPU 版或认不到 NVIDIA 显卡")
+    if torch.cuda.is_available():
+        name = torch.cuda.get_device_name(0)
+        try:
+            x = torch.randn(1, 3, 32, 32, device="cuda")
+            w = torch.randn(8, 3, 3, 3, device="cuda")
+            with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.float16):
+                torch.nn.functional.conv2d(x, w, padding=1)
+            torch.cuda.synchronize()
+            res = (True, name)
+        except Exception as e:
+            sm = "sm_%d%d" % torch.cuda.get_device_capability(0)
+            arch = torch.cuda.get_arch_list()
+            res = (False, (f"torch {torch.__version__} 不含 {name}（{sm}）的计算内核（只带 {' '.join(arch)}）"
+                           if sm not in arch else f"{name} 上运算失败：{str(e).splitlines()[0]}"))
+    _CUDA_OK.append(res)
+    return res
+
+
 def pick_device(name="auto"):
     torch = _torch()
     if name != "auto":
         return torch.device(name)
     if torch.cuda.is_available():
-        return torch.device("cuda")
+        ok, why = cuda_usable()
+        if ok:
+            return torch.device("cuda")
+        print(f"[sr] WARN 显卡用不了：{why}。本次改用 CPU（约慢 10 倍）。修复：\"{sys.executable}\" "
+              f"\"{os.path.join(HERE, 'bootstrap.py')}\" --sr", file=sys.stderr)
+        return torch.device("cpu")
     mps = getattr(torch.backends, "mps", None)
     if mps is not None and mps.is_available():
         os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
@@ -306,6 +339,11 @@ class Upscaler:
 
     @staticmethod
     def _pick(backend, onnx, autoinstall=True):
+        if autoinstall and backend in ("auto", "torch"):
+            try:                                  # 导入 torch 之前体检：装错 CUDA 版就先换装（结果缓存）
+                _bs.check_torch()
+            except Exception as e:
+                print(f"[sr] torch 显卡体检跳过：{e}", file=sys.stderr)
         if backend != "auto":
             return backend
         for attempt in (0, 1):
@@ -367,9 +405,12 @@ def available():
     b = Upscaler._pick("auto", None, autoinstall=False)
     if b == "torch":
         torch = _torch()
-        dev = "CUDA" if torch.cuda.is_available() else (
-            "Apple MPS" if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available()
-            else "CPU")
+        if torch.cuda.is_available():
+            ok, why = cuda_usable()
+            dev = f"CUDA {why}" if ok else f"CPU —— 显卡用不了：{why}；修复：bootstrap.py --sr"
+        else:
+            dev = ("Apple MPS" if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available()
+                   else "CPU")
         return b, f"torch {torch.__version__}（{dev}）"
     if b == "onnx":
         return b, f"onnxruntime + {default_onnx()}"

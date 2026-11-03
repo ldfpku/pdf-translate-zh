@@ -110,6 +110,46 @@ def t_mock_domain():
          geo["method"] if geo else "None")
 
 
+def t_read_choose():
+    """The new label helpers construct image-backed questions and honor their offline contract."""
+    os.environ["PDF_ZH_TYPESAFE"] = "1"
+    os.environ["PDF_ZH_TYPESAFE_MOCK"] = "1"
+    image = Image.new("RGB", (400, 300), "white")
+    seen = []
+
+    def handler(body):
+        seen.append(body)
+        if "reads" in body["questions"]:
+            q = body["questions"]["reads"]
+            return {"reads": {"type": "noul", "noul": 0.91}}
+        q = body["questions"]["best"]
+        keys = list(q["criteria"])
+        return {"best": {"type": "choice", "choice": keys[1],
+                         "probabilities": {keys[0]: 0.14, keys[1]: 0.86},
+                         "confidence": 0.86}}
+
+    previous = tsjudge._mock_handler
+    tsjudge._mock_handler = handler
+    try:
+        read_score, tokens, seconds = tsjudge.read_check(image, "SEAL HOUSING")
+        candidates = ["密封壳体", "密封座"]
+        choice, probabilities, confidence, tokens2, seconds2 = tsjudge.choose_label(
+            image, candidates, domain="A hydraulic repair drawing; labels identify component names."
+        )
+    finally:
+        tsjudge._mock_handler = previous
+    read_ok = (read_score == 0.91 and tokens == 0 and seconds >= 0)
+    step("read_check：请求带裁片与逐字校验问题", read_ok and
+         "SEAL HOUSING" in seen[0]["questions"]["reads"]["instructions"] and
+         bool(seen[0]["assets"]))
+    choose_ok = (choice == candidates[1] and probabilities[candidates[1]] == 0.86 and
+                 confidence == 0.86 and tokens2 == 0 and seconds2 >= 0)
+    step("choose_label：候选闭集与 domain 进入 state", choose_ok and
+         seen[1]["state"]["domain"].startswith("A hydraulic") and
+         set(seen[1]["questions"]["best"]["criteria"]) == set(candidates))
+    step("TypeSafe 标注辅助阈值", tsjudge.READ_YES == 0.6 and tsjudge.CHOOSE_MIN_CONF == 0.8)
+
+
 def _run(args, env):
     r = subprocess.run([sys.executable] + args, env=env, capture_output=True, text=True,
                        encoding="utf-8", errors="replace")
@@ -194,6 +234,7 @@ def main():
     print("tsjudge 离线自检  Python %d.%d  %s" % (sys.version_info[0], sys.version_info[1], sys.platform))
     t_prepare()
     t_mock_domain()
+    t_read_choose()
     t_default_unchanged()
     print("\n结论：" + ("全部通过" if not _fails else "失败 %d 项：%s" % (len(_fails), _fails)))
     return 1 if _fails else 0

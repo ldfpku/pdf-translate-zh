@@ -8,6 +8,13 @@ Jev 不生成文本，只返回判断：Choice（单选 + 各项概率）、Noul
     图内文字   figpipe.py detect        插图 → Noul 有无文字；每个检测框 → Noul 是文字标注 / 是件号气泡
     件号气泡   figpipe.py apply         三法求环都失败的气泡 → Noul 判存在 + Box 定环，坐标换算回图
     表格网格   tsjudge.py tables        tablefix.regions() 认出的每块区域 → Noul 是不是真表格
+    读字校验   read_check()             标注裁片 + 我读出的英文 → Noul 是否正好拼成这串（挡读错/框号错位）
+    闭集选词   choose_label()           标注裁片 + 候选中文 + 行业上下文(state) → Choice 选最贴合的译法
+
+两条针对**图内文本翻译**的接入点（read_check / choose_label）由实测确立（2026-11-01，jev-1.14.0，
+10 个真实工程图标注）：读字校验 9/10 干净区分；闭集选词无上下文 7/10、把行业上下文放进 state 后 10/10。
+**译文「忠实性」整体校验（Noul 判一条自由中文对不对）实测 2/10，不可靠，未采用**——那是复合判断，
+错译沾边就给高分；正确做法是让 Jev 在候选里**选**（select-instead-of-generate），不是判自由文本。
 
 开关与密钥（**默认关闭；关闭时没有任何入口 import 本模块，默认流程字节不变**）：
     PDF_ZH_TYPESAFE=1        打开（只认环境变量，不读 config.json —— config.json 跟着技能走到每台电脑，
@@ -56,9 +63,11 @@ MAX_SIDE, MIN_SIDE = 1568, 280                        # 上游边长限制（两
 MAX_BODY = 32 * 1024 * 1024
 CROPS_PER_REQUEST = 16                                # 一次请求里放几个裁片（控体积与上下文）
 
-# 缺省阈值 —— 都**未实测**，在自己的图上调（references/typesafe.md）
-NOUL_YES = 0.6
-BOX_MIN_CONF = 0.5
+# 缺省阈值（references/typesafe.md §7）
+NOUL_YES = 0.6          # 通用 Noul 判「是」（插图框文字/气泡、表格区）
+BOX_MIN_CONF = 0.5      # Box 置信度下限（气泡定环）
+READ_YES = 0.6          # 读字校验判「读对」；2026-11-01 在 10 个真实标注上读对≥0.80、误读/错词≤0.19
+CHOOSE_MIN_CONF = 0.8   # 闭集选词采信阈值；低于此只当提示、回人工（实测选对的 conf 都 ≥0.82）
 
 REMINDER = ("TypeSafe 图像判断未启用：需要用户**自己**把密钥设为环境变量 TYPESAFE_API_KEY，并设 "
             "PDF_ZH_TYPESAFE=1（不要把密钥发到聊天里，也不要写进任何文件）。未设置时流程照常走启发式。")
@@ -382,6 +391,45 @@ def figure_hints(im, boxes, per_request=CROPS_PER_REQUEST):
                                "bubble": round(ans.noul("bubble_%d" % i), 3)}
     out["seconds"] = round(out["seconds"], 2)
     return out
+
+
+def read_check(crop_image, text):
+    """读字校验（Noul）：裁片里印的英文是不是正好拼成 `text`（忽略空格与引线）。
+
+    服务于「准确识别图内英文」：图内英文靠多模态模型看核查图手填、本机无 OCR，读错一框或框号
+    错位无人发现。读对该裁片写的英文后，用它确认——这是**单一可观察**判断（不是译文忠实那种复合判断）。
+    返回 (概率, input_tokens, seconds)。2026-11-01 在 10 个真实工程图标注上：读对 0.80~0.98、整词形近/
+    错词压到 0.01~0.19，9/10 干净区分；唯一边界是**单字母拼写差异**（漏一个 s）不敏感，挡不住，
+    但框号错位、整词读错、缩写展开错都挡得住。阈值见 `READ_YES`。"""
+    pg = prepare_image(crop_image)
+    ref, a = asset(pg)
+    q = {"reads": {"type": "noul",
+                   "instructions": ("Do the printed English characters in `crop` spell exactly \"%s\" "
+                                    "(ignoring spacing and surrounding leader lines)?") % text}}
+    ans = ask({"crop": ref}, q, {ref: a})
+    return ans.noul("reads"), ans.input_tokens, ans.seconds
+
+
+def choose_label(crop_image, candidates, domain=None):
+    """闭集选词（Choice）：从 `candidates`（中文候选列表）里选最贴合裁片英文标注的译法。
+
+    服务于「翻译准确」：缩写与多义行业词（Sub、HDSR、Mandrel）光看裁片会按字面误选，必须把**行业
+    上下文**放进 state（`domain`，一段英文说明：这是什么行业的图、专有缩写指什么）。候选由内容层/术语库给出。
+    返回 (选中项, 概率表, 置信度, input_tokens, seconds)。
+    2026-11-01 实测：无 domain 7/10；加 domain 后 10/10、置信度 ≥0.82（Sub→接头、HDSR→压紧式中心架等全部翻正）。
+    这是 select-instead-of-generate：Jev 不生成译文，只在代码给的候选里选。"""
+    pg = prepare_image(crop_image)
+    ref, a = asset(pg)
+    crit = {c: ("Chinese translation: %s" % c) for c in candidates}
+    state = {"crop": ref}
+    if domain:
+        state["domain"] = domain          # 共享上下文进 state，一次计费，每个候选都能参考
+    q = {"best": {"type": "choice",
+                  "instructions": "Which Chinese phrase best translates the English label shown in `crop`?",
+                  "criteria": crit}}
+    ans = ask(state, q, {ref: a})
+    ch, probs, conf = ans.choice("best")
+    return ch, probs, conf, ans.input_tokens, ans.seconds
 
 
 def table_is_grid(crop_image):
