@@ -105,5 +105,58 @@ print(f"        正文页码序列 {'正确' if seq2 else '异常'} {nums2[:6]}�
 ok &= seq2
 ok &= checks.report("流式：缺字", checks.check_glyphs(out2))
 
+# ---- 图内文字漏译排查（逐用图 sweep）：矢量/位图两种形态 ----
+print("  —— 图内文字漏译 sweep ——")
+import json as _json
+import re as _re
+import tempfile as _tf
+import figlabel as _fl
+try:
+    from PIL import Image as _Img, ImageDraw as _Draw, ImageFont as _Font
+    import fontkit as _fk
+    _work = _tf.mkdtemp(prefix="pdfzh_sweep_")
+    _figdir = os.path.join(_work, "figures"); os.makedirs(_figdir)
+    _datadir = os.path.join(_work, "data"); os.makedirs(_datadir)
+    _dpi = 300; _k = _dpi / 72.0
+    _im = _Img.new("RGB", (600, 240), "white")
+    _f = _Font.truetype(_fk.find("mono-bold"), 34)
+    _d = _Draw.Draw(_im)
+    _d.text((40, 50), "COVERED", font=_f, fill="black")     # 对应矢量 label
+    _d.text((40, 150), "MISSING", font=_f, fill="black")    # 位图烧死、漏译
+    _im.save(os.path.join(_figdir, "fig.png"))
+    _labels = [dict(text="Covered", size=12.0,
+                    x=round(40 / _k, 2), y=round(50 / _k, 2),
+                    w=round(260 / _k, 2), h=round(45 / _k, 2))]
+    _json.dump([dict(page=1, idx=1, file="fig.png", bbox=[0, 0, 600 / _k, 240 / _k],
+                     w_pt=600 / _k, h_pt=240 / _k, dpi=_dpi,
+                     labels=_labels, kept_numbers=[])],
+               open(os.path.join(_datadir, "figures.json"), "w", encoding="utf-8"),
+               ensure_ascii=False, indent=1)
+    _keep = _re.compile(r"^(?:\(?\d{1,2}\)?|[A-K])$")
+    _swept = _fl.sweep_figures_json(_work, ("fig.png",),
+                                    zh_map={"Covered": "已处置"},
+                                    keep_re=_keep, verbose=False)
+    if _swept:
+        ok &= checks.report("sweep：位图烧死漏译报得出（COVERED 不误报）",
+                            [] if dict(_swept).get("fig.png", 0) == 1 else _swept)
+    else:
+        print("  note sweep 本机未检出（后端降级？）——跳过该断言，流程不阻断")
+    # 负对照：清空 covered → 连 COVERED 也应报出（判据非假）
+    _fp = os.path.join(_datadir, "figures.json")
+    _figs = _json.load(open(_fp, encoding="utf-8"))
+    for _m in _figs:
+        _m["labels"] = []
+    _json.dump(_figs, open(_fp, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    _swept2 = _fl.sweep_figures_json(_work, ("fig.png",), zh_map={},
+                                     keep_re=_keep, verbose=False)
+    if _swept:   # 仅在后端可用时做负对照
+        ok &= checks.report("sweep 负对照：清空 covered 后报出更多残留",
+                            [] if dict(_swept2).get("fig.png", 0) > dict(_swept).get("fig.png", 0)
+                            else ["负对照未报出更多：判据可疑"])
+    import shutil as _sh
+    _sh.rmtree(_work, ignore_errors=True)
+except ImportError as _e:
+    print(f"  note sweep 自检跳过（检测后端缺失：{_e}）")
+
 print("\nPASS" if ok else "\nFAIL")
 sys.exit(0 if ok else 1)

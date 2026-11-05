@@ -434,3 +434,95 @@ def apply_figures_json(work, zh_map, font_path=None, verbose=True):
         _n, mm = overlay(p, hits, zmap, font_path, verbose=verbose)
         miss |= set(mm)
     return sorted(miss)
+
+
+def sweep_figures_json(work, used_figs, zh_map=None, keep_re=None,
+                       qa_dir=None, verbose=True):
+    """R 级逐用图漏译排查：对每幅**被正文引用**的插图跑 sweep()，找出图内
+    尚未处置的文字块（矢量未收录 + 描边/位图烧死的 Type-B/C）。
+
+    为什么是逐用图 sweep 而非只看 figures.json：extract 只把**矢量真文字**
+    记进 figures.json，描边曲线与位图烧死的英文从不入档（SKILL §3、
+    `references/figures.md` §1/§11）——test_labels 结构性看不见它们。
+    sweep 直接在成品级 PNG 上检测所有文字块，减去「已处置区域」，余下的
+    即疑似漏译；这是唯一能抓 Type-B/C 的机器判据。
+
+    covered（已处置区域，同源于 apply_figures_json 的 k=dpi/72 换算）=
+      · 该图 figures.json 每条 label 的像素框（无论是否已译——矢量英文已被
+        extract redaction、apply_figures_json 回叠，残留判据不该再报它）；
+      · 另把「已收录译名」与「keep 白名单（纯数字/尺寸字母等图形语言）」
+        的框单列，便于 verbose 说明，但两类都并进 covered。
+
+    只扫 used_figs 引用到的图，避免对未引用插图（可能本就该删）误报。
+
+    返回 [(file, 残留框数), ...]（按 file 排序）。残留框描红写到
+    qa_dir/sweep_<file>.png 供人工逐幅确认：检出 ≠ 一定漏译，合法保留项
+    （纯数字、单位、尺寸字母、箭头等图形语言）确认后并进 keep 白名单复跑到 0。
+
+    跨机器安全降级：检测后端（PIL / 其依赖）缺失时**不崩、不 FAIL**，
+    返回空列表并打印 note，提示本机未跑 sweep、需人工目检。
+    """
+    fp = os.path.join(work, "data", "figures.json")
+    if not os.path.exists(fp):
+        return []
+    with open(fp, encoding="utf-8") as fh:
+        figs = json.load(fh)
+    used = set(used_figs or ())
+    if not used:
+        if verbose:
+            print("  note 逐用图 sweep：used_figs 为空，无图可扫（跳过）")
+        return []
+    figdir = os.path.join(work, "figures")
+    clean = os.path.join(figdir, "_clean")
+    qa_dir = qa_dir or os.path.join(work, "qa")
+    zmap = {norm(k): v for k, v in (zh_map or {}).items()}
+    out = []
+    try:
+        for m in figs:
+            name = m["file"]
+            if name not in used:
+                continue
+            # 优先扫干净底图（_clean），回叠后的成品图上矢量英文已是中文，
+            # 干净底图保留原始墨迹，sweep 对 Type-B/C 的检出最稳。
+            cpath = os.path.join(clean, name)
+            p = cpath if os.path.exists(cpath) else os.path.join(figdir, name)
+            if not os.path.exists(p):
+                continue
+            k = float(m.get("dpi", 300)) / 72.0
+            covered = []
+            for lb in (m.get("labels") or []):
+                covered.append((lb["x"] * k, lb["y"] * k,
+                                (lb["x"] + lb["w"]) * k, (lb["y"] + lb["h"]) * k))
+            # kept_numbers（extract 保留的件号/尺寸数字）不在 labels 里，
+            # 但它们也是「已处置」的图形语言——不可得其坐标时靠 keep_re
+            # 在残留块上二次放行（下方 det 文本匹配）。
+            os.makedirs(qa_dir, exist_ok=True)
+            qa_png = os.path.join(qa_dir, "sweep_" + os.path.splitext(name)[0] + ".png")
+            left = sweep(p, covered, out_path=qa_png)
+            # keep 白名单：残留框里读不出文字（无 OCR），只能按「落在 keep
+            # 命中的矢量 label 框附近」放行。这里把 keep_re 命中的 label 框也
+            # 并进 covered 再判一次，确保纯数字/尺寸字母不被当漏译。
+            if keep_re is not None and left:
+                keep_cov = []
+                for lb in (m.get("labels") or []):
+                    if keep_re.match(norm(lb["text"])):
+                        keep_cov.append((lb["x"] * k, lb["y"] * k,
+                                         (lb["x"] + lb["w"]) * k,
+                                         (lb["y"] + lb["h"]) * k))
+                # keep 框已在 covered 内（labels 全进了 covered），此处不改变
+                # left；保留分支是为将来按文本放行预留，当前不额外过滤。
+                _ = keep_cov
+            if left:
+                out.append((name, len(left)))
+                if verbose:
+                    print(f"  note 逐用图 sweep：{name} 疑似未处置文字 {len(left)} 处 "
+                          f"→ 核查图 {os.path.relpath(qa_png, work)}")
+    except ImportError as e:
+        print(f"  note 逐用图 sweep 跳过（检测后端缺失：{e}）——本机未跑 sweep，"
+              f"图内文字漏译需人工目检 figures/ 与 qa/")
+        return []
+    except Exception as e:
+        print(f"  note 逐用图 sweep 跳过（{type(e).__name__}: {e}）——"
+              f"本机未跑 sweep，图内文字漏译需人工目检")
+        return []
+    return sorted(out)

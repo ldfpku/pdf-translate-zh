@@ -2,6 +2,25 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.4.0] - 2026-11-05
+
+### 新增
+- **R 级 driver 接入 `figlabel.sweep` 逐用图漏译硬闸门**（`figlabel.sweep_figures_json`）：对每幅被正文引用的插图
+  检测全部文字块、减去已处置区域（figures.json 矢量 label 框 ∪ 白名单，与 `apply_figures_json` 同源 `k=dpi/72`），
+  余下即疑似漏译，描红写到 `qa/sweep_<图名>.png`。覆盖 **矢量未收录 + 描边 / 位图烧死（Type-B/C）** 的图内文本标签——
+  后者从不入 figures.json，原「图内标注中文覆盖」闸门结构性看不见。检测后端缺失时降级为 note（不 FAIL）、提示人工目检。
+- `Job.fig_label_sweep`（默认开）：确无需翻译的图内文字的文档可显式关闭，关闭时打印 note 说明。
+- `tests/test_figsweep_offline.py`：合成离线用例覆盖正判、负对照（清空 covered 须报出更多）、只扫 `used_figs`、核查图落盘；
+  `selftest.py` 冒烟自检新增矢量/位图两形态的 sweep 断言与负对照。
+
+### 变更
+- **`labels_zh is None` 且文档含插图时直接判 FAIL**（原为静默跳过）：agent 删掉 / 漏填 `LABELS_ZH` 时，
+  闸门与矢量回叠一并静默失效、图内文字整批漏译而无任何 FAIL 行；现在有图必须显式提供 `LABELS_ZH`，
+  确无需翻译且已逐幅 sweep 归零时写空 dict `{}` 即可（`{}` 不是 None，闸门照跑）。
+- `SKILL.md` §0 / §3 / §9 / §12 与 `references/figures.md` 导言 / §6 / §10.1 / §11 明确
+  **图题（caption）与图内文本标签是两回事、两者都必须译**，并把「逐幅 sweep」从靠记忆的散文升级为
+  引擎已自动执行的硬闸门 + 人工对核查图逐幅确认。
+
 ## [1.3.0] - 2026-11-03
 
 ### 新增

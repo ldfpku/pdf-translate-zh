@@ -92,6 +92,9 @@ class Job:
     # 图表类文档须放宽到任意位数刻度与百分数（坐标刻度同属图形语言）。
     labels_keep_re: object = None
     used_figs: tuple = ()         # 正文引用到的图文件名
+    # R 级逐用图漏译 sweep（抓矢量未收录 + 描边/位图烧死的图内文字）。默认开；
+    # 确无需翻译的图内文字时可显式关（关闭会打印 note 说明）。
+    fig_label_sweep: bool = True
     uniq_desc: tuple = ()         # 零件描述唯一串
     desc_zh: object = None
     whitelist: str = None         # 整体替换默认白名单（少用）
@@ -143,8 +146,26 @@ def run(job, quiet=False):
     if job.desc_zh and job.uniq_desc:
         ok &= checks.report("零件描述规则覆盖", checks.test_terms(
             job.uniq_desc, job.desc_zh))
+    keep = job.labels_keep_re or checks.NUMERIC_KEEP
+    # 文档是否含插图：figures.json 非空且正文确有引用图。
+    _figs_fp = os.path.join(job.work, "data", "figures.json")
+    _has_figs = os.path.exists(_figs_fp) and bool(job.used_figs)
+    try:
+        import json as _json
+        if _has_figs:
+            _has_figs = bool(_json.load(open(_figs_fp, encoding="utf-8")))
+    except Exception:
+        pass
+    if job.labels_zh is None and _has_figs:
+        # 原为无声跳过 —— agent 删掉/漏填 LABELS_ZH 时闸门与回叠一并静默失效，
+        # 图内文字整批漏译而无任何 FAIL 行（图题译了 ≠ 图内标签译了）。
+        # ⇒ R 级有插图必须显式提供 LABELS_ZH：逐条译出 / 按白名单保留；
+        #    确无需翻译的图内文字且已逐幅 sweep 归零时写空 dict {} 即可。
+        ok &= checks.report(
+            "图内标注中文覆盖（R 级有插图必须显式提供 LABELS_ZH；"
+            "空 dict {} 表示已逐条核对且无需翻译）",
+            ["content.py 未定义 LABELS_ZH（当前为 None）"])
     if job.labels_zh is not None:
-        keep = job.labels_keep_re or checks.NUMERIC_KEEP
         ok &= checks.report("图内标注中文覆盖", checks.test_labels(
             job.work, job.labels_zh, keep))
         # 把 extract 抹掉的图内矢量英文按 figures.json 坐标回叠成中文（幂等）
@@ -270,6 +291,24 @@ def run(job, quiet=False):
               f"ReportLab 多 frag CJK 折行不支持禁则，属库限制，已在丙中说明")
 
     if job.flow:
+        # 图内文字漏译排查（逐用图 sweep）：抓矢量未收录 + 描边/位图烧死的
+        # 图内文字。test_labels 只看 figures.json 的矢量 label，结构性看不见
+        # Type-B/C；sweep 在成品级 PNG 上检测全部文字块、减去已处置区域。
+        # 检测后端缺失时 sweep_figures_json 内部降级为 note（不 FAIL），
+        # 避免跨机器误杀；本机未跑则终端已提示需人工目检。
+        if job.fig_label_sweep and _has_figs:
+            import figlabel as _fl
+            swept = _fl.sweep_figures_json(
+                job.work, job.used_figs, zh_map=job.labels_zh,
+                keep_re=keep, qa_dir=os.path.join(job.work, "qa"),
+                verbose=not quiet)
+            ok &= checks.report("图内文字漏译排查（逐用图 sweep）", swept, detail=10)
+            if swept:
+                print("        检出 ≠ 一定漏译：对 qa/sweep_*.png 逐幅确认，"
+                      "真漏译补译名，合法保留（纯数字/单位/尺寸字母）录白名单后复跑到 0")
+        elif not job.fig_label_sweep:
+            print("  note 图内文字漏译排查：本件已显式关闭 fig_label_sweep "
+                  "（确认无需翻译的图内文字）")
         # R 级第一关：内容对账（数字/件号/型号/标准号全集，附录页不作证）
         body_pages = set(range(1, n + 1)) - allow
         src_pages = set(job.token_src_pages) if job.token_src_pages else None

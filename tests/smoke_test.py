@@ -127,6 +127,7 @@ def main():
         ("test_bootstrap_offline.py", "CUDA 轮子选择离线测试"),
         ("test_tsjudge_offline.py", "TypeSafe 离线测试"),
         ("test_figfix_offline.py", "位图标注替换离线测试"),
+        ("test_figsweep_offline.py", "图内文字漏译 sweep 离线测试"),
     ):
         rc, log, dt = run([os.path.join(ROOT, "tests", script)])
         step(title, rc == 0, "%.0fs" % dt)

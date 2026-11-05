@@ -4,13 +4,13 @@ description: 工业/石油/机械/工程技术类英文 PDF → 出版级简体�
 license: Apache-2.0
 compatibility: Python 3.9+（Windows / macOS / Linux）；依赖首次运行自动安装
 metadata:
-  version: "1.3.0"
+  version: "1.4.0"
   repository: https://github.com/ldfpku/pdf-translate-zh
 ---
 
 # 工业技术 PDF 出版级中文翻译（pdf-translate-zh）
 
-<!-- VERSION:AUTO -->**版本 v1.3.0** · Apache-2.0 · https://github.com/ldfpku/pdf-translate-zh
+<!-- VERSION:AUTO -->**版本 v1.4.0** · Apache-2.0 · https://github.com/ldfpku/pdf-translate-zh
 <!-- /VERSION:AUTO -->
 （此行版本号由发布流程自动写入，单一数据源是上方 frontmatter `metadata.version`；
 勿手改——改版本只改 frontmatter，再跑 `python tools/sync_version.py` 全仓同步）
@@ -86,8 +86,8 @@ S=<本技能目录>/scripts                    # Windows: set S=<本技能目录
 #   nohup python3 $S/bootstrap.py --sr > setup.log 2>&1 &   然后轮询 setup.log
 python $S/translate_pdf.py <file.pdf|目录>  # 定级 + 素材提取 + 生成内容层骨架（此脚本不翻译，只备料）
 #   产出 <PDF 所在目录>/translated/<名>/{data,figures,qa,content}/
-#   有插图时先目检 qa/contact_*.png（无插图看 render/p*.png），通读 data/prose_dump.txt、
-#   tables_readable.txt、route.json
+#   有插图时先目检 qa/contact_*.png（无插图看 render/p*.png）——**逐幅看图内文字，不是只看图题**：
+#   图里的英文标签（部件名、箭头说明等）同样要译；通读 data/prose_dump.txt、tables_readable.txt、route.json
 #   → 行业识别（§1 第 1 步）→ 【翻译这一步由你亲自做：读抽出的原文，用地道中文写进内容层】
 #     R/H 级写 content.py + terms.py；
 #     P/S 级 `build.py --dump` 导出待译单元 → 写 <名>_dict.py + terms.py（§2）
@@ -110,7 +110,7 @@ python $S/preview.py <译稿.pdf> <出图目录> --sheet   # 整册缩览拼贴�
 | 一致 | 术语全文统一、首现附英文、同物同名（规则优先、字典兜底）；语体全册一致 |
 | 流畅 | 长句拆短、被动转主动；shall/must/should = 应/必须/宜；工序用祈使句；全角标点由 `zh()` 保证；断行守禁则 |
 | 版式 | 正文 10.5pt 左右、1.5 倍行距；任何中文 ≥ 6.5pt；图题在下表题在上；文本类用 A4；页数由内容决定（约原版 70~85%）；品牌色与页眉页脚沿用 |
-| 插图 | 图内文字全类译出、逐幅漏译排查归零；图幅权重跟随原版；尺寸代号与商标不译；< 150 dpi 位图先超分再回叠；件号气泡默认 KEEP，需纠正时才判读对账并重绘 |
+| 插图 | **图题（caption）与图内文本标签是两回事，两者都必须译——只译图题不译图内标签视为漏译**；图内文字全类译出、逐幅漏译排查归零（R 级 driver 已接 `sweep` 硬闸门，见 §3/§9）；图幅权重跟随原版；尺寸代号与商标不译；< 150 dpi 位图先超分再回叠；件号气泡默认 KEEP，需纠正时才判读对账并重绘 |
 | 结构 | 表格 100% 译文重建（不以截图充当）；目录点引线对齐 + 跳转链接；列表层级还原 |
 | 可追溯 | 正文之后附录 A《译校勘误说明》、附录 B《中英术语对照表》，各自另起一页、不与正文同页（§10） |
 | 可复现 | 提取 / 词表 / 装配三层各自可重跑；工作区路径全相对，拷到别的机器可直接重跑 |
@@ -263,11 +263,21 @@ NOTE→`note`「说明」、CAUTION→`caution`「注意」、WARNING→`warning
 | B 描边曲线 | 文本层无、`get_drawings()` 有密集小路径 | `vectext.runs()` 按笔画连通块定位 |
 | C 位图烧死 | 文本层无、落在嵌入位图内 | `vectext.inkbox()` + `genraster.py` |
 
-- **R 级最短路径**：`extract.py` 已抹掉图内矢量英文并记下坐标（`data/figures.json`），
-  在 `content.py` 写 `LABELS_ZH = {英文: 中文}`，构建时自动同源回叠（`references/figures.md` §10.1）。
-- **C 类首版必然漏译且自检查不出来**。唯一办法是**逐幅全查**（`figlabel.sweep`）：
-  每幅检测全部文字块，减去已处置区域，余下描红出核查图人工确认，合法保留录白名单，
-  复跑到 0。不要用「矢量标注 = 0 才查位图」筛选——一条矢量图题就让整幅躲过排查。
+> **强制步骤（别跳）**：图题由正文 `("fig", 文件, 宽, 图题)` 块承担，图内文本标签**另算**。
+> 每份含插图的文档都**必须**打开 `data/figures.json` 逐条处理 `labels`（译出 / 按白名单保留），
+> 并对每幅被引用的插图跑漏译 `sweep`。**只把图题译成中文、不碰图里的英文标签，就是漏译。**
+> R 级 `driver` 已把这两件事做成硬闸门：`LABELS_ZH` 为 `None`（内容层没写这个符号）且文档有插图
+> → 直接 FAIL；成品段逐用图跑 `figlabel.sweep`，检出未处置文字 → FAIL。空 `LABELS_ZH = {}`
+> **仅当**该文档确无需翻译的图内文字、且已逐幅 `sweep` 归零时才允许。
+
+- **R 级矢量标签**：`extract.py` 已抹掉图内矢量英文并记下坐标（`data/figures.json`），
+  在 `content.py` 写 `LABELS_ZH = {英文: 中文}`（保留项写成与原文相同、空串 = 只描白不写字），
+  构建时自动同源回叠（`references/figures.md` §10.1）。figures.json 里每条 `labels` 都要有归宿，
+  闸门「图内标注中文覆盖」才会过。
+- **C 类（描边/位图烧死）首版必然漏译且自检查不出来**——它根本不在 figures.json 里。唯一办法是
+  **逐幅全查**（`figlabel.sweep`，R 级 driver 现自动对每幅用图跑）：检测全部文字块，减去已处置区域，
+  余下描红出核查图（`qa/sweep_*.png`）人工确认，合法保留录白名单，复跑到 0。不要用「矢量标注 = 0
+  才查位图」筛选——一条矢量图题就让整幅躲过排查。
 - **裁图先求真实视觉范围**（`figcrop.safe_extent`）：标签与引线常画在位图 bbox 之外。
   回叠坐标与裁框**同源**（`figlabel`），绝不手估像素框。
 - ⚠ **裁框必须过净空判据**（`figclip.clearance` + 常驻 `checks.check_fig_clip`）：裁框
@@ -366,6 +376,8 @@ NOTE→`note`「说明」、CAUTION→`caution`「注意」、WARNING→`warning
 | 关 | 判据 |
 |---|---|
 | 内容对账 | 源版每个数字/件号/型号/标准号记号在译版正文里找到归宿（`check_content_tokens`，附录页不作证）——「零增删」的机器证明 |
+| 图内标注中文覆盖 | figures.json 每条矢量 `labels` 都有译名或在白名单（`test_labels`）；**有插图却没写 `LABELS_ZH`（为 None）直接 FAIL**，不再静默跳过 |
+| 图内文字漏译排查（逐用图 `sweep`） | 对每幅被引用插图跑 `figlabel.sweep`，抓矢量未收录 + 描边/位图烧死的图内文字（test_labels 看不见的 Type-B/C）；检出写 `qa/sweep_*.png`，须人工确认后归零。检测后端缺失时降级为 note 并提示人工目检 |
 | 残留英文 = 0 | 白名单外的英文行；纯单位/代号行（`gpm`、`4-1/2 REG`、`API RP 7G`）自动放行 |
 | 缺字 = 0 | 按实际写入的字体逐 span 查 cmap（换机器字体不同也有效） |
 | 文本层码位 | 无 U+2011/U+00A0（字体别名让图号「675-200-011」不可检索） |
@@ -456,6 +468,7 @@ NOTE→`note`「说明」、CAUTION→`caution`「注意」、WARNING→`warning
 | 88 93 94 | 幻灯片：项目符号两形态、带符号条目无条件入流、列表整列重排 |
 | 96 | 不 `subset_fonts()` 文件涨 75 倍 |
 | 100 | 裁框不知道英文图题在哪 → 净空判据常驻 |
+| 100b | **图题译了 ≠ 图内标签译了**：只译图题、图里英文标签整批漏译 → R 级 driver 已接「图内标注中文覆盖（有图无 `LABELS_ZH` 即 FAIL）」+「逐用图 `sweep`」两道硬闸门 |
 | 102b | 判据写完做负对照 |
 | 103 | ReportLab 的 `PageBreakIfNotEmpty` 是空壳 → 多撕一张空白页 |
 | 106 | 徽标软掩膜比基色图大 16 倍 → 按掩膜重建，不超分 |
