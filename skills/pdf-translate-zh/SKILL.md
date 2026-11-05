@@ -10,8 +10,20 @@ metadata:
 
 # 工业技术 PDF 出版级中文翻译（pdf-translate-zh）
 
+<!-- VERSION:AUTO -->**版本 v1.3.0** · Apache-2.0 · https://github.com/ldfpku/pdf-translate-zh
+<!-- /VERSION:AUTO -->
+（此行版本号由发布流程自动写入，单一数据源是上方 frontmatter `metadata.version`；
+勿手改——改版本只改 frontmatter，再跑 `python tools/sync_version.py` 全仓同步）
+
 把工业技术英文 PDF 做成**出版级中文版**：内容忠实、表达地道、版式服务于中文
 阅读、插图纯净、勘误可追溯。质量目标三词：**准确、一致、流畅**。
+
+> **谁来翻译（先读，别搞错分工）**：**译文由你——此刻正在执行本技能的这个模型——亲自写**。
+> `scripts/` 里的 Python **不是翻译器，不含任何翻译引擎、不调用任何翻译 API、不做离线/本地机器翻译**；
+> 它们只做工程活：提取原文、定级、排版、把你写好的译文回填进版面、跑质量闸门。
+> 所以「翻译」这一步就是你阅读抽取出的原文、理解后用地道中文写进内容层（`content.py` / `<名>_dict.py` / `terms.py`），
+> **绝不要**去找、去装、去等某个「翻译包/翻译模型/离线翻译服务」，也不要把译写任务外包给脚本——脚本跑完 `translate_pdf.py`
+> 产出的只是「待你翻译的骨架」，名字里的 translate 指的是整个流程，不是它自己会翻译。
 
 > **核心公理**：忠实的对象是**内容与表达方式**，不是英文版的物理坐标。
 > 物理断行、条目间距、为塞回英文框而缩的字号，都是导出痕迹，不是内容。
@@ -20,25 +32,39 @@ metadata:
 > 装配/闸门中心化**、图-图题映射从源版几何取**真值**（`references/pipeline.md`）。
 
 本技能每条规则都来自实测踩坑；很多坑**静默失败**（闸门全绿、渲染前毫无征兆）。
-主干只讲流程与决策，细节在 `references/`，按下表**用到哪一路再读哪一册**：
+本 `SKILL.md` 只讲流程与决策（主干），细节按需读子目录——这是渐进式披露，**用到哪一路再读哪一册**。
+技能目录布局：
+
+```
+pdf-translate-zh/
+├── SKILL.md              # 本文件：主干流程与决策
+├── references/           # 按需加载的细则分册（下表）
+├── scripts/              # 全部引擎脚本，直接调用，勿重写
+│   └── README.md         # 模块地图、依赖与可移植性细节
+├── fonts/                # 放入自带中文字体即全机一致
+├── config.example.json   # 镜像/后端配置模板（拷为 config.json 生效）
+├── setup.sh / setup.ps1  # 无 Python 环境时的一次性引导
+```
+
+细则分册（均位于 `references/`，正文引用一律写全 `references/<名>.md`）：
 
 | 分册 | 何时读 |
 |---|---|
-| `industry.md` | 每份文档第 0 步：行业识别与行业译法惯例 |
-| `pitfalls.md` | 开工前读顶部「⚠ 毁页级速查」；其余按所走路线读对应章节 |
-| `overlay.md` | 有 P 级页（图纸/表单）要原页叠印时 |
-| `text-layout.md` | 所有路线的中文排版（断行禁则、列表、字号取齐、注记块） |
-| `tables.md` | 有表格时（叠印的 `tablefix` / 重排的列宽与上下标） |
-| `figures.md` | 插图里有字（矢量/描边/位图烧死）、要裁图、要超分或重绘件号气泡时 |
-| `cover.md`、`toc-and-nav.md` | 有封面、目录，或文档 ≥ 20 页要加跳转链接与书签时 |
-| `formulas.md` | 有算式、Symbol 造字区字符、上下标、分数时 |
-| `slides.md` | PPT 导出的横版讲义（S 级） |
-| `pipeline.md` | 模板册（同版式重复 N 次）、散文 ≥ 30 页、或多册并行时 |
-| `typesafe.md` | 用户设了 `TYPESAFE_API_KEY` 想开 TypeSafe 图像判断（定级对照、图内文字/气泡提示、气泡定环兜底）时 |
-| `scripts/README.md` | 模块地图、依赖与可移植性细节 |
+| `references/industry.md` | 每份文档第 1 步：行业识别与行业译法惯例 |
+| `references/pitfalls.md` | 开工前读顶部「⚠ 毁页级速查」；其余按所走路线读对应章节 |
+| `references/overlay.md` | 有 P 级页（图纸/表单）要原页叠印时 |
+| `references/text-layout.md` | 所有路线的中文排版（断行禁则、列表、字号取齐、注记块） |
+| `references/tables.md` | 有表格时（叠印的 `tablefix` / 重排的列宽与上下标） |
+| `references/figures.md` | 插图里有字（矢量/描边/位图烧死）、要裁图、要超分或重绘件号气泡时 |
+| `references/cover.md`、`references/toc-and-nav.md` | 有封面、目录，或文档 ≥ 20 页要加跳转链接与书签时 |
+| `references/formulas.md` | 有算式、Symbol 造字区字符、上下标、分数时 |
+| `references/slides.md` | PPT 导出的横版讲义（S 级） |
+| `references/pipeline.md` | 模板册（同版式重复 N 次）、散文 ≥ 30 页、或多册并行时 |
+| `references/typesafe.md` | 用户设了 `TYPESAFE_API_KEY` 想开 TypeSafe 图像判断（定级对照、图内文字/气泡提示、气泡定环兜底）时 |
+| `scripts/README.md` | 引擎模块地图、依赖与可移植性细节（不是细则分册，列此便于查阅） |
 
-> **数据合规（开工前看一眼）**：`scripts/` 默认全在本机运行，不上传文档内容；但**译写由你
-> 当前所用的模型完成**，云端模型会收到原文与译文。可选的 TypeSafe 图像判断（§1 第 0.8 步）开启后，
+> **数据合规（开工前看一眼）**：`scripts/` 默认全在本机运行、不上传文档内容；但**译写是你这个模型亲自做的**，
+> 所以你当前运行所在的模型（若为公有云模型）就会读到原文与你的译文。可选的 TypeSafe 图像判断（§1 第 4 步）开启后，
 > 页面图与插图裁片也会发到 api.typesafe.ai —— 默认关闭。文件看起来是客户资料、带保密/专有
 > 标记（Confidential、Proprietary、NDA、Export Controlled、ITAR/EAR 等）或含个人信息，
 > 而你不确定当前是否在用本地模型时，开工前用一句话提醒用户：这类资料交给公有云模型处理
@@ -58,13 +84,14 @@ S=<本技能目录>/scripts                    # Windows: set S=<本技能目录
 #   sh <技能目录>/setup.sh  /  powershell -ExecutionPolicy Bypass -File <技能目录>\setup.ps1
 #   工具调用有时限（如 180 s）时，首次的 `bootstrap.py --sr`（torch 可达 2.5 GB）放后台跑：
 #   nohup python3 $S/bootstrap.py --sr > setup.log 2>&1 &   然后轮询 setup.log
-python $S/translate_pdf.py <file.pdf|目录>  # 定级 + 素材提取 + 生成内容层骨架
+python $S/translate_pdf.py <file.pdf|目录>  # 定级 + 素材提取 + 生成内容层骨架（此脚本不翻译，只备料）
 #   产出 <PDF 所在目录>/translated/<名>/{data,figures,qa,content}/
 #   有插图时先目检 qa/contact_*.png（无插图看 render/p*.png），通读 data/prose_dump.txt、
 #   tables_readable.txt、route.json
-#   → 行业识别（§1 第 0 步）→ 按定级写内容层：R/H 级写 content.py + terms.py；
+#   → 行业识别（§1 第 1 步）→ 【翻译这一步由你亲自做：读抽出的原文，用地道中文写进内容层】
+#     R/H 级写 content.py + terms.py；
 #     P/S 级 `build.py --dump` 导出待译单元 → 写 <名>_dict.py + terms.py（§2）
-python <工作区>/content/build.py            # 出稿 + 全部闸门；任何 FAIL 返回非 0
+python <工作区>/content/build.py            # 把你写好的译文回填出稿 + 全部闸门；任何 FAIL 返回非 0
 python $S/preview.py <译稿.pdf> <出图目录> --sheet   # 整册缩览拼贴，逐页目检
 ```
 
@@ -92,7 +119,7 @@ python $S/preview.py <译稿.pdf> <出图目录> --sheet   # 整册缩览拼贴�
 
 ## 1. 定级与路线
 
-### 第 0 步：行业识别 → `references/industry.md`
+### 第 1 步：行业识别 → `references/industry.md`
 
 按证据强度：①引用的**标准号族**（API/SY = 石油钻完井；ASME B&PV = 压力容器；
 AWS = 焊接……）②**产品域词汇**（motor/stator/rotor/jar/BHA → 井下工具）③单位制与工况词。
@@ -100,7 +127,7 @@ AWS = 焊接……）②**产品域词汇**（motor/stator/rotor/jar/BHA → 井
 必错的词在这一层拦住）、**译法惯例**（`*-sub`=「××接头」、`housing`=「壳体」）、
 **语体**（规范条文体 / 操作指令体）。
 
-### 第 0.5 步：版面级别（`translate_pdf.py` 已写入 `data/route.json`，也可单跑 `route.py`）
+### 第 2 步：版面级别（`translate_pdf.py` 已写入 `data/route.json`，也可单跑 `route.py`）
 
 对每页问三问：**坐标有语义吗**（尺寸线、剖视图）？**格子要回填吗**（表单）？
 **删掉版式重排后信息有损吗**（统计图表）？
@@ -110,13 +137,13 @@ AWS = 焊接……）②**产品域词汇**（motor/stator/rotor/jar/BHA → 井
 | **R 语义重排**（默认） | 三问皆否：散文/步骤/普通表格 | 抽内容结构 → 译 → 按中文版式流式排版 | `driver.Job(flow=True)` |
 | **H 混合** | 同一文档 R、P 页并存 | 逐页分流：正文页重排、图纸表单页叠印，最后按序拼合 | 两者皆用 |
 | **P 版面保持** | 任一问为是：图纸/表单/图表 | 原页叠印，坐标即语义 | `hybrid_overlay` / `dwg_overlay` |
-| **S 幻灯片** | 横开 + 大字号的 PPT 导出 | 整页保位 + 页内列表**整列重排** | `slidekit`，见 `slides.md` |
+| **S 幻灯片** | 横开 + 大字号的 PPT 导出 | 整页保位 + 页内列表**整列重排** | `slidekit`，见 `references/slides.md` |
 
 页级信号（按此顺序判）：横开且主导字号 ≥ 18pt（或 ≥ 12pt 且字少、满版图）→ 幻灯片；
 图面 ≥ 70% 或路径 ≥ 3000/页 → 图纸；勾选框 ≥ 15/页 或 **填写位 ≥ 8**（带标签的空白横线 + 下划线串 +
 冒号标签后留白）→ 表单；文本层几乎为空 → 文字已转曲线或是扫描件，只能视觉转录后重排。
-2026-10-20 在 122 页真实文档上：旧判据 68 对 → 现判据 92 对（`typesafe.md` §6.1）；仍漏的是靠上方标题
-定位空白格的表单、横开装配汇总表、整页曲线图、产品数据页（判成图纸）——这些开 `--typesafe` 能补（第 0.8 步）。
+2026-10-20 在 122 页真实文档上：旧判据 68 对 → 现判据 92 对（`references/typesafe.md` §6.1）；仍漏的是靠上方标题
+定位空白格的表单、横开装配汇总表、整页曲线图、产品数据页（判成图纸）——这些开 `--typesafe` 能补（第 4 步）。
 
 - ⚠ **不要**用「路径数/字符数」比值，也**不要**拿扁长矩形当填写横线——表格单元格
   也是扁长矩形，实测会把 8 份纯文字档全判成表单。「填写位」只认**线上线下都没有字、左端有标签词**的横线。
@@ -132,13 +159,13 @@ AWS = 焊接……）②**产品域词汇**（motor/stator/rotor/jar/BHA → 井
 **H 级拼合**：R 部分用 `build.py` 出稿，P 页用叠印在原页上出单页，按原顺序
 `insert_pdf` 拼合；目录链接与书签在**拼合（及附录合并）之后**再加（§5）。
 
-### 第 0.75 步：模板册判定
+### 第 3 步：模板册判定
 
 抽 3 页比对「字段标签集合」：同一模板重复 N 次、只换数据（规格页/数据表册/检验记录）
 → **提取-重建制**：标签驱动结构化提取、数值文本层直取零转录、标签字典闭集译一次全册
-生效、提取值与源页逐 token 对账 = 0。见 `pipeline.md` §1。
+生效、提取值与源页逐 token 对账 = 0。见 `references/pipeline.md` §1。
 
-### 第 0.8 步：图像判断（可选，默认关闭）→ `references/typesafe.md`
+### 第 4 步：图像判断（可选，默认关闭）→ `references/typesafe.md`
 
 TypeSafe 的 Jev 模型（固定 **jev-1.14.0**，上游文档 2026-10-20 核实）只返回**类型化判断**（Choice / Noul / Box），
 不生成文本。本技能把它接在启发式看不见的几处；除页面级别在高置信度时改判外，其余都是附加输出、不改原判据：
@@ -157,18 +184,18 @@ TypeSafe 的 Jev 模型（固定 **jev-1.14.0**，上游文档 2026-10-20 核实
 - **限制**：实验功能（上游称 Dreamer-ready，不建议生产，格式与准确度可能随版本变）；PNG/JPEG、边长 280~1568 px、
   超限整个请求被拒（`tsjudge.prepare_image()` 统一转正、缩放、补白）；Box 没有「找不到」答案，必配 Noul 判存在；
   置信度不是校准概率，阈值（`NOUL_YES` 0.6、`BOX_MIN_CONF` 0.5）只在小样本上看过、未单独调优。
-- **费用与实测**（`typesafe.md` §6，2026-10-20，jev-1.14.0）：按输入 token 计费，页面图约 3.4k tok/页、2.3 s/页，
+- **费用与实测**（`references/typesafe.md` §6，2026-10-20，jev-1.14.0）：按输入 token 计费，页面图约 3.4k tok/页、2.3 s/页，
   插图约 1.2k tok/框。仓库干净样本上页面级别模型 38/40、启发式 40/40；**真实客户文档 122 页**（偏向可疑页）上
   模型 102/122、启发式 68/122：模型对表单、讲义、图纸零漏判，错的全是 R 页被多保位；按 confidence ≥ 0.8 取模型、
   否则启发式，可到 111/122。示例页图不值（+1%，token ×3）。插图 43 框「文字标注 / 气泡」全对。
 - **回退**：任何一次调用失败只记错误、不中断；关闭时流水线入口都不 `import tsjudge`，产物与关闭前逐字节一致。
 
-### 第 0.9 步：规模判断
+### 第 5 步：规模判断
 
 散文 ≥ 30 页或模板册 ≥ 20 单元时上**多代理流水线**：翻译代理分块并行（结构化供料
 + 行业术语表 + 输出 schema + 原文笔误回收进勘误），视觉代理转录图内文字（机器给框、
 代理读字、坐标禁自造）。**行业判定/术语/坐标/装配/闸门永远中心化**。多册并行时先统一
-行业判定与跨册术语底座、冻结后再一册一代理。见 `pipeline.md` §2、§3。
+行业判定与跨册术语底座、冻结后再一册一代理。见 `references/pipeline.md` §2、§3。
 
 ---
 
@@ -237,7 +264,7 @@ NOTE→`note`「说明」、CAUTION→`caution`「注意」、WARNING→`warning
 | C 位图烧死 | 文本层无、落在嵌入位图内 | `vectext.inkbox()` + `genraster.py` |
 
 - **R 级最短路径**：`extract.py` 已抹掉图内矢量英文并记下坐标（`data/figures.json`），
-  在 `content.py` 写 `LABELS_ZH = {英文: 中文}`，构建时自动同源回叠（`figures.md` §10.1）。
+  在 `content.py` 写 `LABELS_ZH = {英文: 中文}`，构建时自动同源回叠（`references/figures.md` §10.1）。
 - **C 类首版必然漏译且自检查不出来**。唯一办法是**逐幅全查**（`figlabel.sweep`）：
   每幅检测全部文字块，减去已处置区域，余下描红出核查图人工确认，合法保留录白名单，
   复跑到 0。不要用「矢量标注 = 0 才查位图」筛选——一条矢量图题就让整幅躲过排查。
@@ -251,18 +278,18 @@ NOTE→`note`「说明」、CAUTION→`caution`「注意」、WARNING→`warning
 - **位图标注替换**（`figpipe.py` 默认 `LABEL_STYLE="figfix"`）：`detect`（最小通道找墨）→
   对照核查图逐框填 `labels` → `apply` → `check` 三道核查（残留 / 误擦 / 压线）→ 逐图目检。
   引线侧必须人工标注，手给端点必须实测；标注译名由用户字典提供，技能不内置领域术语表。
-  细则与字典格式见 `figures.md` §18。
+  细则与字典格式见 `references/figures.md` §18。
 - **画质**：有效分辨率 = 像素宽 ÷ 放置宽(pt) × 72。< 150 dpi → `sr.py` 超分 4 倍后再检测回叠
   （后端自动选 torch → onnxruntime → Lanczos 兜底，处置方式记在 `sr_report.json`，附录 A 丙照实写，
   Lanczos 不得写成「超分」）；
   ≥ 300 dpi 不动；带独立高分辨率软掩膜的徽标按掩膜重建、不超分。位图标注字号按 §18 原文数字/大写字高对齐。
 - **件号气泡**：默认 `KEEP` 原样保留。只有数字模糊且判读需纠正时才列入 `BUBBLES` 重绘；
-  内容层负责与项目上下文、零件表对账，细则见 `figures.md` §17。
+  内容层负责与项目上下文、零件表对账，细则见 `references/figures.md` §17。
 - **R 级位图插图一条龙**（`figpipe.py`，手册/作业指导书里的低清渲染图、截图）：
   `extract`（按 xref 提原图，软掩膜合成白底，记有效 dpi）→ `sr.py --places data/images.json`
   → `detect`（最小通道找墨，出带框号核查图）→ 内容层按**框号**写译名 / KEEP / SKIP
   （件号气泡默认 KEEP，确需纠正才列入 `BUBBLES`）→ `apply` → `check` 三道核查 → `sweep`
-  归零 → `sheet`（仅需重绘气泡时目检）。未列出的框按漏译报错，详见 `figures.md` §18。
+  归零 → `sheet`（仅需重绘气泡时目检）。未列出的框按漏译报错，详见 `references/figures.md` §18。
 
 ---
 

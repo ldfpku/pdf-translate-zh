@@ -19,7 +19,10 @@ python tests/smoke_test.py                  # Windows: py tests\smoke_test.py
 - `python tools/package.py` 能打包（顺带校验 SKILL.md frontmatter）。
 - 改了流程或规则、或想登记新模型：按 `tests/agent_eval/README.md` 跑一次代理端到端验证，把结果补进 README「已验证的模型」。
 - 新规则写进对应的 `references/*.md`，并在 `SKILL.md` 的分册表里能找到入口；`SKILL.md` 正文保持精简。
-- 发版时同步三处版本号：`skills/pdf-translate-zh/SKILL.md`（`metadata.version`）、`.claude-plugin/plugin.json`、`.claude-plugin/marketplace.json`，并更新 `CHANGELOG.md`。打 `vX.Y.Z` 标签后 Release 工作流会自动打包上传。
+- 改版本只改**一处**：`skills/pdf-translate-zh/SKILL.md` frontmatter 的 `metadata.version`（单一数据源），
+  然后跑 `python tools/sync_version.py`，脚本会把它同步写入 `SKILL.md` 正文的版本展示行、`.claude-plugin/plugin.json`、
+  `.claude-plugin/marketplace.json`。更新 `CHANGELOG.md`，打 `vX.Y.Z` 标签推送；Release 工作流会先 `sync_version.py --check --tag`
+  校验四处与标签一致（不一致即发布失败），再自动打包上传。
 
 ## 样例与隐私
 

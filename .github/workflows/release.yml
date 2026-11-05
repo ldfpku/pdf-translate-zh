@@ -16,21 +16,10 @@ jobs:
         with:
           python-version: "3.12"
       - name: Check versions match tag
-        run: |
-          python - <<'PY'
-          import json, os, re, sys
-          tag = os.environ["GITHUB_REF_NAME"].lstrip("v")
-          skill = open("skills/pdf-translate-zh/SKILL.md", encoding="utf-8").read()
-          got = {
-              "SKILL.md": re.search(r'version:\s*"?([^"\n]+)"?', skill).group(1),
-              "plugin.json": json.load(open(".claude-plugin/plugin.json", encoding="utf-8"))["version"],
-              "marketplace.json": json.load(open(".claude-plugin/marketplace.json", encoding="utf-8"))["plugins"][0]["version"],
-          }
-          bad = {k: v for k, v in got.items() if v != tag}
-          if bad:
-              sys.exit("版本号与标签 %s 不一致：%s" % (tag, bad))
-          print("versions OK:", got)
-          PY
+        # 单一数据源是 SKILL.md frontmatter 的 metadata.version；
+        # 脚本校验正文展示行、plugin.json、marketplace.json 三处是否都与它一致，
+        # 再校验 frontmatter 是否等于本次标签。任一不一致则发布失败。
+        run: python tools/sync_version.py --check --tag "$GITHUB_REF_NAME"
       - name: Package
         run: python tools/package.py
       - name: Create GitHub release
